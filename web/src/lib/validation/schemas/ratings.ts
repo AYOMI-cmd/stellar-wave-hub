@@ -21,4 +21,19 @@ export const createRatingSchema = z.object({
   tx_hash: z.string().nullable().optional(),
 });
 
-export type CreateRatingInput = z.infer<typeof createRatingSchema>;
+export const voteRatingSchema = z.object({
+  rating_id: z.coerce
+    .number()
+    .int()
+    .positive("rating_id is required"),
+});
+
+export type VoteRatingInput = z.infer<typeof voteRatingSchema>;
+
+export const ratingSortOptions = ["helpful", "recent", "highest", "lowest"] as const;
+export type RatingSortOption = (typeof ratingSortOptions)[number];
+
+export const sortRatingQuerySchema = z.object({
+  sort: z.enum(ratingSortOptions).default("helpful"),
+});
+

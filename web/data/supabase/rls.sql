@@ -129,7 +129,10 @@ create policy projects_owner_delete
     )
   );
 
+alter table public.rating_votes enable row level security;
+
 -- RATINGS
+
 drop policy if exists ratings_public_read on public.ratings;
 drop policy if exists ratings_owner_insert on public.ratings;
 drop policy if exists ratings_owner_update on public.ratings;
@@ -206,6 +209,42 @@ create policy maintainer_categories_admin_manage
   );
 
 create policy ratings_owner_delete on public.ratings
+  for delete
+  to authenticated
+  using (
+    (
+      auth.jwt() ->> 'app_user_id'
+    ) is not null
+    and (
+      user_id = (auth.jwt() ->> 'app_user_id')::bigint
+      or coalesce(auth.jwt() ->> 'app_role', '') in ('admin', 'maintainer')
+    )
+  );
+
+-- RATING VOTES (Helpful review upvotes)
+drop policy if exists rating_votes_public_read on public.rating_votes;
+drop policy if exists rating_votes_owner_insert on public.rating_votes;
+drop policy if exists rating_votes_owner_delete on public.rating_votes;
+
+create policy rating_votes_public_read
+  on public.rating_votes
+  for select
+  to anon, authenticated
+  using (true);
+
+create policy rating_votes_owner_insert
+  on public.rating_votes
+  for insert
+  to authenticated
+  with check (
+    (
+      auth.jwt() ->> 'app_user_id'
+    ) is not null
+    and user_id = (auth.jwt() ->> 'app_user_id')::bigint
+  );
+
+create policy rating_votes_owner_delete
+  on public.rating_votes
   for delete
   to authenticated
   using (
