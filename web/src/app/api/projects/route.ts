@@ -2,6 +2,7 @@ import {projectsCol, usersCol, ratingsCol, nextId} from "@/lib/db";
 import {getAuthUser} from "@/lib/auth";
 import {parseJsonBody} from "@/lib/validation/parse-body";
 import {createProjectSchema} from "@/lib/validation/schemas/projects";
+import {publicProjectCacheHeaders} from "@/lib/public-project-cache";
 import slugify from "slugify";
 import {getSupabase} from "@/lib/firebase";
 export const dynamic = "force-dynamic";
@@ -109,10 +110,13 @@ export async function GET(request: Request) {
 		const offset = (page - 1) * limit;
 		const paged = enriched.slice(offset, offset + limit);
 
-		return Response.json({
-			projects: paged,
-			pagination: {page, limit, total, pages: Math.ceil(total / limit)},
-		});
+		return Response.json(
+			{
+				projects: paged,
+				pagination: {page, limit, total, pages: Math.ceil(total / limit)},
+			},
+			{headers: publicProjectCacheHeaders},
+		);
 	} catch (err) {
 		console.error("List projects error:", err);
 		return Response.json({error: "Internal server error"}, {status: 500});
