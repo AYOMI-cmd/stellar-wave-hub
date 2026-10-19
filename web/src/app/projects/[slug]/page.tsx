@@ -3,6 +3,7 @@
 import {useEffect, useState, use} from "react";
 import {useAuth} from "@/context/AuthContext";
 import StarRating from "@/components/StarRating";
+import EmbedSnippet from "@/components/EmbedSnippet";
 import Link from "next/link";
 import {
 	ON_CHAIN_ENABLED,
@@ -615,6 +616,9 @@ export default function ProjectDetailPage({
 								</div>
 							</div>
 						)}
+
+						{/* Embed snippet — shown at the bottom of the overview for project authors and visitors */}
+						<EmbedSnippet slug={project.slug} />
 					</div>
 				)}
 
