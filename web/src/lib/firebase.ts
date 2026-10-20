@@ -4,14 +4,14 @@ type Row = Record<string, unknown>;
 type FilterOp = "==" | "in";
 
 const TABLE_BY_COLLECTION: Record<string, string> = {
-	users: "users",
-	projects: "projects",
-	ratings: "ratings",
-	financial_snapshots: "financial_snapshots",
-	auth_challenges: "auth_challenges",
-	counters: "counters",
-	submission_notes: "submission_notes",
-	promo_codes: "promo_codes",
+    users: "users",
+    projects: "projects",
+    ratings: "ratings",
+    financial_snapshots: "financial_snapshots",
+    auth_challenges: "auth_challenges",
+    counters: "counters",
+    submission_notes: "submission_notes",
+    promo_codes: "promo_codes",
 };
 
 function resolveTable(collection: string): string {
@@ -33,10 +33,10 @@ function keyField(collection: string): string {
 
 function normalizeDocId(collection: string, id: string): string | number {
 	if (
-		collection === "users" ||
-		collection === "projects" ||
-		collection === "ratings"
-	) {
+        collection === "users" ||
+        collection === "projects" ||
+        collection === "ratings"
+    ) {
 		const numeric = Number(id);
 		return Number.isNaN(numeric) ? id : numeric;
 	}
@@ -220,7 +220,7 @@ class QueryRef {
 	} {
 		return {
 			batch: () => {
-				const operations: Array<() => Promise<void>> = [];
+				const operations: Array< () => Promise<void>> = [];
 				return {
 					delete: (ref: DocRef) => {
 						operations.push(() => ref.delete());

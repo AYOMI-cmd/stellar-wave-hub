@@ -45,6 +45,8 @@ export async function POST(request: Request) {
       usability_score: usability_score || null,
       review_text: review_text || null,
       tx_hash: tx_hash || null,
+      owner_reply: null,
+      owner_reply_at: null,
       created_at: new Date().toISOString(),
     };
 
