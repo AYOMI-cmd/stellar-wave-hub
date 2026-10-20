@@ -36,6 +36,11 @@ export const submissionNotesCol = {
 		return col("submission_notes");
 	},
 };
+export const projectUpdatesCol = {
+	get ref() {
+		return col("project_updates");
+	},
+};
 export const notificationsCol = {
 	get ref() {
 		return col("notifications");
