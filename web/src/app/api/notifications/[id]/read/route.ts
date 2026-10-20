@@ -3,9 +3,23 @@ import { getAuthUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
+export async function POST(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  return handleMarkRead(request, params);
+}
+
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
+) {
+  return handleMarkRead(request, params);
+}
+
+async function handleMarkRead(
+  request: Request,
+  params: { id: string }
 ) {
   try {
     const auth = getAuthUser(request);
