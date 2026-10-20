@@ -1,5 +1,7 @@
 import { projectsCol, usersCol, ratingsCol } from "@/lib/db";
-export const dynamic = "force-dynamic";
+import { isRegisteredOnChain } from "@/lib/ratingContract";
+
+export const regalidate = 60;
 
 export async function GET(
   _request: Request,
@@ -34,6 +36,18 @@ export async function GET(
       projectData.username = uDoc.data()!.username;
       projectData.user_github = uDoc.data()!.github_url;
     }
+  }
+
+  // Check on-chain registration status (cached via revalidate)
+  const slug = projectData.slug as string | undefined;
+  if (slug) {
+    try {
+      projectData.is_registered_on_chain = await isRegisteredOnChain(slug);
+    } catch {
+      projectData.is_registered_on_chain = false;
+    }
+  } else {
+    projectData.is_registered_on_chain = false;
   }
 
   // Fetch ratings

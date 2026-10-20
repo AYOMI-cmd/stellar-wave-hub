@@ -121,6 +121,7 @@ export default function ProjectDetailPage({
 	const [onChainRating, setOnChainRating] = useState<OnChainRating | null>(null);
 	// true = project exists in registry; false = not registered (rating goes off-chain only)
 	const [isOnChainProject, setIsOnChainProject] = useState(false);
+	const [registeredOnChain, setRegisteredOnChain] = useState(false);
 
 	// Rating form
 	const [ratingForm, setRatingForm] = useState({
@@ -172,6 +173,12 @@ export default function ProjectDetailPage({
 				}
 			})
 			.catch(() => {});
+	}, [project]);
+
+	// Fetch on-chain registration status for the badge
+	useEffect(() => {
+		if (!ON_CHAIN_ENABLED || !project) return;
+		isRegisteredOnChain(project.slug).then(setRegisteredOnChain).catch(() => {});
 	}, [project]);
 
 	// Check if the current user has already rated on-chain (only if project is registered)
@@ -299,6 +306,22 @@ export default function ProjectDetailPage({
 								<span className="featured-badge tag tag-solar">
 									Featured
 								</span>
+							)}
+							{registeredOnChain && (
+								<a
+									href={`${stellarExplorerBase(project.stellar_network)}/contract/${process.env.NEXT_PUBLIC_RATING_CONTRACT_ID ?? ""}`}
+									target="_blank"
+									rel="noopener noreferrer"
+									className="tag tag-aurora inline-flex items-center gap-1.5 cursor-pointer hover:bg-aurora/20 transition-all"
+									title="This project is registered on-chain"
+								>
+									<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
+										<path d="M12 2L2 7l10 5 10-5-10-5z" />
+										<path d="M2 17l10 5 10-5" />
+										<path d="M2 12l10 5 10-5" />
+									</svg>
+									Registered on-chain
+								</a>
 							)}
 						</div>
 						<div className="flex items-center gap-3 mt-2 text-sm text-ash">
