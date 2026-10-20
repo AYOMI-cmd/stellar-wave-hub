@@ -3,6 +3,7 @@ import {getAuthUser} from "@/lib/auth";
 import {parseJsonBody} from "@/lib/validation/parse-body";
 import {createProjectSchema} from "@/lib/validation/schemas/projects";
 import slugify from "slugify";
+import {getSupabase} from "@/lib/firebase";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
@@ -18,47 +19,72 @@ export async function GET(request: Request) {
 			Math.max(1, Number(url.searchParams.get("limit")) || 12),
 		);
 
-		// Query approved/featured projects
-		let query = projectsCol.ref.where("status", "in", [
-			"approved",
-			"featured",
-		]);
+		const supabase = getSupabase();
+		let query = supabase
+			.from("projects")
+			.select("*", { count: "exact" })
+			.in("status", ["approved", "featured"]);
 
 		if (category) {
-			query = query.where("category", "==", category);
+			query = query.ilike("category", category);
 		}
 
 		if (substantial) {
-			query = query.where("is_substantial", "==", true);
+			query = query.eq("is_substantial", true);
 		}
 
-		const snap = await query.get();
-		let projects: Record<string, unknown>[] = snap.docs.map((d) => ({
-			...d.data(),
-			id: d.data().numericId,
+		if (search && search.trim()) {
+			const cleanSearch = search.replace(/[%_\,()]/g, " ").trim();
+			if (cleanSearch) {
+				query = query.or(
+					`name.ilike.%${cleanSearch}%,description.ilike.%${cleanSearch}%,tags.ilike.%${cleanSearch}%`,
+				);
+			}
+		}
+
+		const { data, count, error } = await query;
+		if (error) throw error;
+
+		let projects: Record<string, unknown>[] = (data || []).map((row) => ({
+			...row,
+			id: row.numericId,
 		}));
 
-		// Client-side search filtering (Firestore doesn't support LIKE)
-		if (search) {
-			projects = projects.filter(
-				(p) =>
-					(p.name as string)?.toLowerCase().includes(search) ||
-					(p.description as string)?.toLowerCase().includes(search) ||
-					(p.tags as string)?.toLowerCase().includes(search),
-			);
-		}
-
-		// Fetch ratings for avg computation
+		// Fetch ratings for avg computation & rating velocity
 		const ratingsSnap = await ratingsCol.ref.get();
-		const ratingsByProject = new Map<number, number[]>();
+		interface RatingItem {
+			score: number;
+			created_at: string;
+		}
+		const ratingsByProject = new Map<number, RatingItem[]>();
 		ratingsSnap.docs.forEach((d) => {
 			const r = d.data();
 			const pid = r.project_id as number;
 			if (!ratingsByProject.has(pid)) ratingsByProject.set(pid, []);
-			ratingsByProject.get(pid)!.push(r.score as number);
+			ratingsByProject.get(pid)!.push({
+				score: Number(r.score) || 0,
+				created_at: (r.created_at as string) || "",
+			});
 		});
 
-		// Enrich with ratings + username
+		const now = Date.now();
+		const DAY_MS = 24 * 60 * 60 * 1000;
+
+		const computeRatingVelocity = (items: RatingItem[]): number => {
+			if (!items || items.length === 0) return 0;
+			return items.reduce((total, item) => {
+				const itemTime = item.created_at ? new Date(item.created_at).getTime() : 0;
+				// Age in days (clamped to >= 0)
+				const ageInDays = itemTime > 0 ? Math.max(0, (now - itemTime) / DAY_MS) : 180;
+				// Half-life recency decay: recent ratings dominate velocity
+				const recency = 1 / Math.pow(1 + ageInDays / 30, 1.5);
+				// Quality weight: higher star scores contribute proportionally
+				const scoreFactor = Math.max(0.5, item.score / 5);
+				return total + recency * scoreFactor;
+			}, 0);
+		};
+
+		// Enrich with ratings + username + rating_velocity
 		const userCache = new Map<number, string>();
 		const enriched: Record<string, unknown>[] = await Promise.all(
 			projects.map(async (p) => {
@@ -72,38 +98,65 @@ export async function GET(request: Request) {
 							: "unknown",
 					);
 				}
-				const scores = ratingsByProject.get(p.id as number) || [];
+				const ratingItems = ratingsByProject.get(p.id as number) || [];
+				const scores = ratingItems.map((r) => r.score);
 				const avg_rating =
 					scores.length > 0
 						? scores.reduce((a, b) => a + b, 0) / scores.length
 						: null;
+				const rating_velocity = Number(computeRatingVelocity(ratingItems).toFixed(3));
 				return {
 					...p,
 					username: uid ? userCache.get(uid) : null,
 					avg_rating,
 					rating_count: scores.length,
+					rating_velocity,
 				};
 			}),
 		);
 
 		// Sort
-		enriched.sort((a, b) => {
-			if (sort === "oldest")
-				return (a.created_at as string) < (b.created_at as string)
-					? -1
-					: 1;
-			if (sort === "top-rated")
-				return (
-					((b.avg_rating as number) || 0) -
-					((a.avg_rating as number) || 0)
-				);
-			// newest — featured first, then by date desc
-			if ((b.featured as number) !== (a.featured as number))
-				return (b.featured as number) - (a.featured as number);
-			return (b.created_at as string) > (a.created_at as string) ? 1 : -1;
-		});
+		if (sort === "new-this-week") {
+			const oneWeekAgo = new Date(now - 7 * DAY_MS).toISOString();
+			const thisWeekItems = enriched.filter((p) => (p.created_at as string) >= oneWeekAgo);
+			// If there are projects added within the last 7 calendar days, focus on them
+			if (thisWeekItems.length >= 3) {
+				enriched.length = 0;
+				enriched.push(...thisWeekItems);
+			}
+			// Sort strictly by created_at descending (newest first)
+			enriched.sort((a, b) => ((b.created_at as string) > (a.created_at as string) ? 1 : -1));
+		} else {
+			enriched.sort((a, b) => {
+				if (sort === "trending" || sort === "velocity") {
+					const velA = (a.rating_velocity as number) || 0;
+					const velB = (b.rating_velocity as number) || 0;
+					if (velB !== velA) return velB - velA;
+					const countA = (a.rating_count as number) || 0;
+					const countB = (b.rating_count as number) || 0;
+					if (countB !== countA) return countB - countA;
+					const rateA = (a.avg_rating as number) || 0;
+					const rateB = (b.avg_rating as number) || 0;
+					if (rateB !== rateA) return rateB - rateA;
+					return (b.created_at as string) > (a.created_at as string) ? 1 : -1;
+				}
+				if (sort === "oldest")
+					return (a.created_at as string) < (b.created_at as string)
+						? -1
+						: 1;
+				if (sort === "top-rated")
+					return (
+						((b.avg_rating as number) || 0) -
+						((a.avg_rating as number) || 0)
+					);
+				// newest — featured first, then by date desc
+				if ((b.featured as number) !== (a.featured as number))
+					return (b.featured as number) - (a.featured as number);
+				return (b.created_at as string) > (a.created_at as string) ? 1 : -1;
+			});
+		}
 
-		const total = enriched.length;
+		const total = count ?? enriched.length;
 		const offset = (page - 1) * limit;
 		const paged = enriched.slice(offset, offset + limit);
 
