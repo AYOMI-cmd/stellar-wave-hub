@@ -137,6 +137,12 @@ create table if not exists public.financial_snapshots (
 create index if not exists financial_snapshots_project_id_idx on public.financial_snapshots (project_id);
 create index if not exists financial_snapshots_created_at_idx on public.financial_snapshots (created_at desc);
 
+create table if not exists public.treasury_snapshots (
+  snapshot_date date primary key,
+  balance numeric(39, 0) not null,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.promo_codes (
   id bigserial primary key,
   code text not null,
