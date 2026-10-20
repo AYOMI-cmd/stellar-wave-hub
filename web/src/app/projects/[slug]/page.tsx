@@ -4,6 +4,7 @@ import {useEffect, useState, use} from "react";
 import {useAuth} from "@/context/AuthContext";
 import StarRating from "@/components/StarRating";
 import Link from "next/link";
+import {notFound} from "next/navigation";
 import {
 	ON_CHAIN_ENABLED,
 	rateProjectOnChain,
@@ -111,6 +112,7 @@ export default function ProjectDetailPage({
 	const [averages, setAverages] = useState<Averages | null>(null);
 	const [financials, setFinancials] = useState<FinancialSummary | null>(null);
 	const [loading, setLoading] = useState(true);
+	const [missing, setMissing] = useState(false);
 	const [activeTab, setActiveTab] = useState<
 		"overview" | "ratings" | "financials"
 	>("overview");
@@ -137,7 +139,10 @@ export default function ProjectDetailPage({
 
 	useEffect(() => {
 		fetch(`/api/projects/${slug}`)
-			.then((r) => r.json())
+			.then((r) => {
+				if (r.status === 404) setMissing(true);
+				return r.json();
+			})
 			.then((data) => {
 				setProject(data.project);
 				setRatings(data.ratings || []);
@@ -261,6 +266,9 @@ export default function ProjectDetailPage({
 			</div>
 		);
 	}
+
+	// Unknown slug — render the segment's branded not-found.tsx
+	if (missing) notFound();
 
 	if (!project) {
 		return (
