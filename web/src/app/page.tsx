@@ -236,79 +236,77 @@ export default function Home() {
 			</section>
 
 			{/* New This Week Section */}
-			<section className="px-4 sm:px-6 lg:px-8 pb-20">
-				<div className="max-w-7xl mx-auto">
-					<div className="flex items-center justify-between mb-8">
-						<div>
-							<div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-aurora/10 border border-aurora/30 text-aurora-bright text-xs font-semibold uppercase tracking-wider mb-2">
+			{(loading || newThisWeek.length > 0) && (
+				<section className="px-4 sm:px-6 lg:px-8 pb-20">
+					<div className="max-w-7xl mx-auto">
+						<div className="flex items-center justify-between mb-8">
+							<div>
+								<div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-aurora/10 border border-aurora/30 text-aurora-bright text-xs font-semibold uppercase tracking-wider mb-2">
+									<svg
+										width="12"
+										height="12"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										strokeWidth="2.5"
+										strokeLinecap="round"
+										strokeLinejoin="round"
+									>
+										<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+									</svg>
+									From Created At
+								</div>
+								<h2 className="font-display font-bold text-2xl sm:text-3xl text-starlight">
+									New this week
+								</h2>
+								<p className="text-ash mt-1">
+									The latest projects submitted and cataloged in the Stellar Wave ecosystem
+								</p>
+							</div>
+							<Link
+								href="/explore?sort=new-this-week"
+								className="btn-ghost text-sm hidden sm:inline-flex items-center gap-1"
+							>
+								View All New
 								<svg
-									width="12"
-									height="12"
+									width="16"
+									height="16"
 									viewBox="0 0 24 24"
 									fill="none"
 									stroke="currentColor"
-									strokeWidth="2.5"
+									strokeWidth="2"
 									strokeLinecap="round"
 									strokeLinejoin="round"
 								>
-									<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+									<path d="m9 18 6-6-6-6" />
 								</svg>
-								From Created At
-							</div>
-							<h2 className="font-display font-bold text-2xl sm:text-3xl text-starlight">
-								New this week
-							</h2>
-							<p className="text-ash mt-1">
-								The latest projects submitted and cataloged in the Stellar Wave ecosystem
-							</p>
+							</Link>
 						</div>
-						<Link
-							href="/explore?sort=new-this-week"
-							className="btn-ghost text-sm hidden sm:inline-flex items-center gap-1"
-						>
-							View All New
-							<svg
-								width="16"
-								height="16"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="2"
-								strokeLinecap="round"
-								strokeLinejoin="round"
-							>
-								<path d="m9 18 6-6-6-6" />
-							</svg>
-						</Link>
-					</div>
 
-					{loading ? (
-						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-							{[...Array(6)].map((_, i) => (
-								<div
-									key={i}
-									className="skeleton h-56 rounded-2xl"
-								/>
-							))}
-						</div>
-					) : newThisWeek.length > 0 ? (
-						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-							{newThisWeek.map((project, i) => (
-								<ProjectCard
-									key={project.id}
-									project={project}
-									index={i}
-									badge={{label: "New", variant: "aurora"}}
-								/>
-							))}
-						</div>
-					) : (
-						<div className="glass rounded-2xl p-12 text-center text-ash">
-							No new projects submitted yet this week.
-						</div>
-					)}
-				</div>
-			</section>
+						{loading ? (
+							<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+								{[...Array(6)].map((_, i) => (
+									<div
+										key={i}
+										className="skeleton h-56 rounded-2xl"
+									/>
+								))}
+							</div>
+						) : (
+							<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+								{newThisWeek.map((project, i) => (
+									<ProjectCard
+										key={project.id}
+										project={project}
+										index={i}
+										badge={{label: "New", variant: "aurora"}}
+									/>
+								))}
+							</div>
+						)}
+					</div>
+				</section>
+			)}
 
 			{/* Top Projects (All-Time Highest Rated) */}
 			<section className="px-4 sm:px-6 lg:px-8 pb-24">

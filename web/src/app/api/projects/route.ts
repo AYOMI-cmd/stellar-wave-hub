@@ -18,12 +18,19 @@ export async function GET(request: Request) {
 			50,
 			Math.max(1, Number(url.searchParams.get("limit")) || 12),
 		);
+		const now = Date.now();
+		const DAY_MS = 24 * 60 * 60 * 1000;
 
 		const supabase = getSupabase();
 		let query = supabase
 			.from("projects")
 			.select("*", { count: "exact" })
 			.in("status", ["approved", "featured"]);
+		if (sort === "new-this-week") {
+			query = query
+				.gte("created_at", new Date(now - 7 * DAY_MS).toISOString())
+				.order("created_at", { ascending: false });
+		}
 
 		if (category) {
 			query = query.ilike("category", category);
@@ -45,7 +52,7 @@ export async function GET(request: Request) {
 		const { data, count, error } = await query;
 		if (error) throw error;
 
-		let projects: Record<string, unknown>[] = (data || []).map((row) => ({
+		const projects: Record<string, unknown>[] = (data || []).map((row) => ({
 			...row,
 			id: row.numericId,
 		}));
@@ -66,9 +73,6 @@ export async function GET(request: Request) {
 				created_at: (r.created_at as string) || "",
 			});
 		});
-
-		const now = Date.now();
-		const DAY_MS = 24 * 60 * 60 * 1000;
 
 		const computeRatingVelocity = (items: RatingItem[]): number => {
 			if (!items || items.length === 0) return 0;
@@ -117,15 +121,10 @@ export async function GET(request: Request) {
 
 		// Sort
 		if (sort === "new-this-week") {
-			const oneWeekAgo = new Date(now - 7 * DAY_MS).toISOString();
-			const thisWeekItems = enriched.filter((p) => (p.created_at as string) >= oneWeekAgo);
-			// If there are projects added within the last 7 calendar days, focus on them
-			if (thisWeekItems.length >= 3) {
-				enriched.length = 0;
-				enriched.push(...thisWeekItems);
-			}
 			// Sort strictly by created_at descending (newest first)
-			enriched.sort((a, b) => ((b.created_at as string) > (a.created_at as string) ? 1 : -1));
+			enriched.sort((a, b) =>
+				new Date(b.created_at as string).getTime() - new Date(a.created_at as string).getTime(),
+			);
 		} else {
 			enriched.sort((a, b) => {
 				if (sort === "trending" || sort === "velocity") {
