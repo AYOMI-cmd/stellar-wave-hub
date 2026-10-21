@@ -69,7 +69,7 @@ export async function POST(
     })
       .addOperation(
         Operation.manageData({
-          name: VERIFY_OWNER_DATA_NAME,
+          name: `${VERIFY_OWNER_DATA_NAME}:${project.numericId}`,
           value: nonce,
           source: stellarAccountId,
         })
