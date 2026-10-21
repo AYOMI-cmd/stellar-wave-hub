@@ -102,6 +102,23 @@ function formatFee(stroops: bigint | null): string {
 }
 
 export default function ProjectDetailPage({
+  const [ratingFee, setRatingFee] = useState<string | null>(null);
+  const [showFeeConfirm, setShowFeeConfirm] = useState<boolean>(false);
+
+  useEffect(() => {
+    async function fetchFee() {
+      try {
+        if (typeof getRatingFee === "function") {
+          const fee = await getRatingFee();
+          setRatingFee(fee.toString());
+        }
+      } catch (e) {
+        console.error("Error fetching rating fee:", e);
+      }
+    }
+    fetchFee();
+  }, []);
+
 	params,
 }: {
 	params: Promise<{slug: string}>;
