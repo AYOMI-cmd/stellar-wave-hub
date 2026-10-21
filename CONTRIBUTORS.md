@@ -354,6 +354,52 @@ Replace `YOUR_GITHUB_USERNAME`, `Your Name`, `YOUR_X_HANDLE`, and the role/proje
 		<sub>Researcher — KindFi</sub>
 	</div>
 
+	<div
+		style="display:inline-block;width:130px;vertical-align:top;text-align:center;margin:8px"
+	>
+		<a href="https://github.com/dee-john">
+			<img
+				src="https://github.com/dee-john.png"
+				width="80"
+				style="border-radius:50%"
+				alt="dee-john"
+			/>
+			<br />
+			<sub><b>dee-john</b></sub>
+		</a>
+		<br />
+		<a href="https://github.com/dee-john"
+			><img
+				src="https://img.shields.io/badge/-GitHub-181717?logo=github&logoColor=white&style=flat-square"
+				alt="GitHub"
+		/></a>
+		<br />
+		<sub>Researcher — Fundable Protocol</sub>
+	</div>
+
+	<div
+		style="display:inline-block;width:130px;vertical-align:top;text-align:center;margin:8px"
+	>
+		<a href="https://github.com/umohmila47-source">
+			<img
+				src="https://github.com/umohmila47-source.png"
+				width="80"
+				style="border-radius:50%"
+				alt="umohmila47-source"
+			/>
+			<br />
+			<sub><b>umohmila47-source</b></sub>
+		</a>
+		<br />
+		<a href="https://github.com/umohmila47-source"
+			><img
+				src="https://img.shields.io/badge/-GitHub-181717?logo=github&logoColor=white&style=flat-square"
+				alt="GitHub"
+		/></a>
+		<br />
+		<sub>Researcher — Issue #320: Research & Upload a Stellar Wave Project</sub>
+	</div>
+
 <!-- CONTRIBUTORS-START -->
 <table>
   <tr>
@@ -406,6 +452,28 @@ Replace `YOUR_GITHUB_USERNAME`, `Your Name`, `YOUR_X_HANDLE`, and the role/proje
       <a href="https://github.com/OG-wura"><img src="https://img.shields.io/badge/-GitHub-181717?logo=github&logoColor=white&style=flat-square" alt="GitHub" /></a>
       <br />
       <sub>Researcher — SafeTrust</sub>
+    </td>
+<td align="center">
+      <a href="https://github.com/dee-john">
+        <img src="https://github.com/dee-john.png" width="80" alt="dee-john" style="border-radius:50%" />
+        <br />
+        <sub><b>dee-john</b></sub>
+      </a>
+      <br />
+      <a href="https://github.com/dee-john"><img src="https://img.shields.io/badge/-GitHub-181717?logo=github&logoColor=white&style=flat-square" alt="GitHub" /></a>
+      <br />
+      <sub>Researcher — Fundable Protocol</sub>
+    </td>
+    <td align="center">
+      <a href="https://github.com/umohmila47-source">
+        <img src="https://github.com/umohmila47-source.png" width="80" alt="umohmila47-source" style="border-radius:50%" />
+        <br />
+        <sub><b>umohmila47-source</b></sub>
+      </a>
+      <br />
+      <a href="https://github.com/umohmila47-source"><img src="https://img.shields.io/badge/-GitHub-181717?logo=github&logoColor=white&style=flat-square" alt="GitHub" /></a>
+      <br />
+      <sub>Researcher — Issue #320: Research & Upload a Stellar Wave Project</sub>
     </td>
     <!-- Add your <td> above this line -->
   </tr>
