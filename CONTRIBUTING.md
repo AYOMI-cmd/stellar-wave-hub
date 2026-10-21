@@ -67,6 +67,43 @@ Open an issue with a clear description of the bug or feature request.
 
 If you hold maintainer (`admin`) access, see [docs/MAINTAINERS.md](docs/MAINTAINERS.md) for responsibilities, the permission matrix, and the review checklist to use before approving submissions.
 
+## Roles and Permissions
+
+Stellar Wave Hub has a role-based permission system to manage access to platform features. Every user is assigned one role upon registration, and roles can be upgraded by administrators.
+
+### Roles
+
+- **Contributor** — The default role for all new users. Contributors can submit projects, leave reviews and ratings on approved projects, and manage their own content.
+- **Maintainer** — A trusted role with moderation capabilities. Maintainers review pending submissions (scoped to assigned categories), approve or reject projects, and receive notifications when new projects are submitted in their categories. Maintainers can also moderate ratings and reviews.
+- **Admin** — The highest authority role. Admins have full access to all moderation and configuration features across all categories, can assign roles to users, and manage maintainer category assignments.
+
+### Permission Matrix
+
+The table below shows what each role can do:
+
+| Action                                  | Contributor | Maintainer | Admin |
+|-----------------------------------------|:-----------:|:----------:|:-----:|
+| Submit a project                        | ✓           | ✓          | ✓     |
+| Rate/review approved projects           | ✓           | ✓          | ✓     |
+| Edit own submissions                    | ✓           | ✓          | ✓     |
+| View pending queue (public /queue page) | ✓           | ✓          | ✓     |
+| View pending submissions (data access)  |             | ✓          | ✓     |
+| Approve/feature submissions             |             | ✓*         | ✓     |
+| Reject/delist projects                  |             | ✓*         | ✓     |
+| Edit any project                        |             |            | ✓     |
+| Delete any project (permanent)          |             |            | ✓     |
+| Delete any rating/review                |             |            | ✓     |
+| Access /admin or /maintainer routes     |             | ✓          | ✓     |
+| Assign user roles                       |             |            | ✓     |
+| Assign maintainer categories            |             |            | ✓     |
+| Receive submission notifications        |             | ✓          | ✓     |
+
+\* Maintainer moderation actions (approve, reject, delist) are scoped to the categories they are assigned to. Admins can moderate all categories.
+
+### Role Assignment
+
+Role assignments are managed by Admins through the platform's admin interface. If you believe you should be granted Maintainer or Admin access, reach out to an existing Admin via the repository discussions or issues.
+
 ## Contribution Workflow
 
 1. **Fork** the repository

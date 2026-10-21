@@ -6,6 +6,7 @@ import {useAuth} from "@/context/AuthContext";
 import {hasMinRole} from "@/lib/roles";
 import {useState} from "react";
 import Avatar from "@/components/Avatar";
+import RoleBadge from "@/components/RoleBadge";
 
 export default function Navbar() {
 	const {user, logout, loading} = useAuth();
@@ -95,9 +96,12 @@ export default function Navbar() {
 								className="flex items-center gap-2 hover:opacity-80 transition-opacity"
 							>
 								<Avatar username={user.username} avatarUrl={user.avatar_url} />
-								<span className="text-sm font-medium text-moonlight">
-									{user.username}
-								</span>
+								<div className="flex flex-col">
+									<span className="text-sm font-medium text-moonlight">
+										{user.username}
+									</span>
+									<RoleBadge role={user.role as "contributor" | "maintainer" | "admin"} />
+								</div>
 							</Link>
 								<button
 									onClick={logout}
@@ -181,6 +185,15 @@ export default function Navbar() {
 					</Link>
 					{user ? (
 						<>
+							<div className="px-4 py-2.5">
+								<div className="flex items-center gap-3 mb-2">
+									<Avatar username={user.username} avatarUrl={user.avatar_url} className="w-10 h-10" />
+									<div>
+										<div className="text-sm font-medium text-starlight">{user.username}</div>
+										<RoleBadge role={user.role as "contributor" | "maintainer" | "admin"} />
+									</div>
+								</div>
+							</div>
 							<Link
 								href="/profile"
 								className="block px-4 py-2.5 rounded-lg text-sm font-medium text-moonlight hover:text-starlight hover:bg-stardust/50"

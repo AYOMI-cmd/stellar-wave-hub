@@ -7,6 +7,7 @@ import { z } from "zod";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import Avatar from "@/components/Avatar";
+import RoleBadge from "@/components/RoleBadge";
 import {
   Form,
   FormField,
@@ -266,7 +267,7 @@ export default function ProfilePage() {
             <h1 className="font-display font-bold text-3xl text-starlight">{user.username}</h1>
             <div className="flex items-center gap-3 text-sm text-ash mt-0.5">
               <span>{user.email || "No email"}</span>
-              <span className="tag tag-nova text-xs">{user.role}</span>
+              <RoleBadge role={user.role as "contributor" | "maintainer" | "admin"} />
               {user.created_at && (
                 <span>Joined {new Date(user.created_at).toLocaleDateString()}</span>
               )}
