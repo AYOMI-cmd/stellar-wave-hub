@@ -12,7 +12,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = getAuthUser(request);
-  if (!auth || !hasMinRole(auth.role, "admin")) {
+  if (!auth || !hasMinRole(auth.role, "maintainer")) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -26,6 +26,9 @@ export async function PUT(
 
   const parsed = await parseJsonBody(request, featuredProjectSchema);
   if (!parsed.success) return parsed.response;
+  if (parsed.data.featured && !hasMinRole(auth.role, "admin")) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   try {
     const featured = parsed.data.featured ? 1 : 0;
