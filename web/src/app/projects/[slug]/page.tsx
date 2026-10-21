@@ -46,6 +46,8 @@ interface Rating {
 	username: string;
 	user_id: number;
 	created_at: string;
+	owner_reply?: string | null;
+	owner_reply_at?: string | null;
 }
 
 interface Averages {
@@ -134,6 +136,12 @@ export default function ProjectDetailPage({
 	const [ratingMsg, setRatingMsg] = useState("");
 	const [ratingStep, setRatingStep] = useState<"idle" | "onchain" | "saving">("idle");
 	const [lastTxHash, setLastTxHash] = useState<string | null>(null);
+
+	// Owner reply state
+	const [editingReplyRatingId, setEditingReplyRatingId] = useState<number | null>(null);
+	const [replyDraft, setReplyDraft] = useState("");
+	const [replySubmitting, setReplySubmitting] = useState(false);
+	const [replyError, setReplyError] = useState<string | null>(null);
 
 	useEffect(() => {
 		fetch(`/api/projects/${slug}`)
@@ -252,6 +260,87 @@ export default function ProjectDetailPage({
 		setSubmitting(false);
 	};
 
+	const startReplyEdit = (ratingId: number, currentReply?: string | null) => {
+		setEditingReplyRatingId(ratingId);
+		setReplyDraft(currentReply || "");
+		setReplyError(null);
+	};
+
+	const cancelReplyEdit = () => {
+		setEditingReplyRatingId(null);
+		setReplyDraft("");
+		setReplyError(null);
+	};
+
+	const handleSaveReply = async (ratingId: number) => {
+		if (!token || !replyDraft.trim()) return;
+		setReplySubmitting(true);
+		setReplyError(null);
+		try {
+			const res = await fetch(`/api/ratings/${ratingId}/reply`, {
+				method: "PUT",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({ owner_reply: replyDraft.trim() }),
+			});
+			const data = await res.json();
+			if (!res.ok) {
+				throw new Error(data.error || "Failed to save reply");
+			}
+			setRatings((prev) =>
+				prev.map((r) =>
+					r.id === ratingId
+						? {
+								...r,
+								owner_reply: replyDraft.trim(),
+								owner_reply_at: data.owner_reply_at || new Date().toISOString(),
+							}
+						: r
+				)
+			);
+			setEditingReplyRatingId(null);
+			setReplyDraft("");
+		} catch (err) {
+			setReplyError(err instanceof Error ? err.message : "Failed to save reply");
+		} finally {
+			setReplySubmitting(false);
+		}
+	};
+
+	const handleDeleteReply = async (ratingId: number) => {
+		if (!token || !window.confirm("Are you sure you want to delete this reply?")) return;
+		setReplySubmitting(true);
+		setReplyError(null);
+		try {
+			const res = await fetch(`/api/ratings/${ratingId}/reply`, {
+				method: "DELETE",
+				headers: {
+					Authorization: `Bearer ${token}`,
+				},
+			});
+			const data = await res.json();
+			if (!res.ok) {
+				throw new Error(data.error || "Failed to delete reply");
+			}
+			setRatings((prev) =>
+				prev.map((r) =>
+					r.id === ratingId
+						? { ...r, owner_reply: null, owner_reply_at: null }
+						: r
+				)
+			);
+			if (editingReplyRatingId === ratingId) {
+				cancelReplyEdit();
+			}
+		} catch (err) {
+			alert(err instanceof Error ? err.message : "Failed to delete reply");
+		} finally {
+			setReplySubmitting(false);
+		}
+	};
+
 	if (loading) {
 		return (
 			<div className="max-w-5xl mx-auto px-4 py-12">
@@ -281,6 +370,7 @@ export default function ProjectDetailPage({
 	const onChainActive = ON_CHAIN_ENABLED && isOnChainProject;
 	const feeLabel = formatFee(onChainActive ? contractRatingFee : null);
 	const canRate = user && user.id !== project.user_id && !alreadyRatedOnChain;
+	const isOwner = Boolean(user && project && user.id === project.user_id);
 
 	return (
 		<div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -809,6 +899,141 @@ export default function ProjectDetailPage({
 												</a>
 											)}
 										</div>
+
+										{/* Owner Reply Block */}
+										{rating.owner_reply && editingReplyRatingId !== rating.id && (
+											<div
+												id={`owner-reply-block-${rating.id}`}
+												className="mt-4 ml-2 sm:ml-6 pl-4 border-l-2 border-nova/40 bg-stardust/20 rounded-r-xl p-4 space-y-2"
+											>
+												<div className="flex items-center justify-between flex-wrap gap-2">
+													<div className="flex items-center gap-2">
+														<span className="tag tag-nova text-[10px] font-bold tracking-wider">
+															Owner
+														</span>
+														<span className="text-xs font-semibold text-starlight">
+															{project.username || "Project Owner"}
+														</span>
+														{rating.owner_reply_at && (
+															<>
+																<span className="text-dust">•</span>
+																<span className="text-[11px] text-ash">
+																	{new Date(rating.owner_reply_at).toLocaleDateString()}
+																</span>
+															</>
+														)}
+													</div>
+													{isOwner && (
+														<div className="flex items-center gap-2.5">
+															<button
+																type="button"
+																id={`edit-reply-btn-${rating.id}`}
+																onClick={() => startReplyEdit(rating.id, rating.owner_reply)}
+																className="text-xs text-nova-bright hover:text-white transition-colors font-medium cursor-pointer inline-flex items-center gap-1"
+															>
+																<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+																	<path d="M12 20h9" />
+																	<path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+																</svg>
+																Edit reply
+															</button>
+															<span className="text-dust">|</span>
+															<button
+																type="button"
+																id={`delete-reply-btn-${rating.id}`}
+																onClick={() => handleDeleteReply(rating.id)}
+																disabled={replySubmitting}
+																className="text-xs text-ash hover:text-supernova transition-colors cursor-pointer"
+															>
+																Delete
+															</button>
+														</div>
+													)}
+												</div>
+												<p className="text-sm text-moonlight/90 leading-relaxed whitespace-pre-wrap">
+													{rating.owner_reply}
+												</p>
+											</div>
+										)}
+
+										{/* Reply button for owner when no reply exists and not editing */}
+										{isOwner && !rating.owner_reply && editingReplyRatingId !== rating.id && (
+											<div className="mt-3 pt-3 border-t border-white/5 flex justify-end">
+												<button
+													type="button"
+													id={`reply-btn-${rating.id}`}
+													onClick={() => startReplyEdit(rating.id)}
+													className="text-xs text-nova-bright hover:text-white transition-colors font-medium inline-flex items-center gap-1.5 cursor-pointer py-1 px-2.5 rounded-lg hover:bg-nova/10"
+												>
+													<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+														<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+													</svg>
+													Reply
+												</button>
+											</div>
+										)}
+
+										{/* Inline Editor */}
+										{isOwner && editingReplyRatingId === rating.id && (
+											<div
+												id={`inline-reply-editor-${rating.id}`}
+												className="mt-4 ml-2 sm:ml-6 pl-4 border-l-2 border-nova/60 bg-stardust/30 rounded-r-xl p-4 space-y-3"
+											>
+												<div className="flex items-center justify-between">
+													<div className="flex items-center gap-2">
+														<span className="tag tag-nova text-[10px] font-bold tracking-wider">
+															Owner
+														</span>
+														<span className="text-xs text-ash">
+															{rating.owner_reply ? "Edit your reply" : "Reply to this review"}
+														</span>
+													</div>
+												</div>
+												{replyError && (
+													<div className="rounded-lg px-3 py-2 text-xs bg-supernova/10 border border-supernova/20 text-supernova">
+														{replyError}
+													</div>
+												)}
+												<textarea
+													id={`reply-textarea-${rating.id}`}
+													rows={3}
+													className="input-field text-sm resize-none"
+													placeholder="Write a response as the project owner..."
+													value={replyDraft}
+													onChange={(e) => setReplyDraft(e.target.value)}
+													autoFocus
+												/>
+												<div className="flex items-center justify-between pt-1">
+													<span className="text-[11px] text-ash">
+														{replyDraft.length}/5000
+													</span>
+													<div className="flex items-center gap-2">
+														<button
+															type="button"
+															id={`cancel-reply-btn-${rating.id}`}
+															onClick={cancelReplyEdit}
+															disabled={replySubmitting}
+															className="btn-ghost text-xs py-1.5 px-3.5"
+														>
+															Cancel
+														</button>
+														<button
+															type="button"
+															id={`save-reply-btn-${rating.id}`}
+															onClick={() => handleSaveReply(rating.id)}
+															disabled={replySubmitting || !replyDraft.trim()}
+															className="btn-nova text-xs py-1.5 px-3.5 disabled:opacity-50"
+														>
+															{replySubmitting
+																? "Saving..."
+																: rating.owner_reply
+																	? "Update Reply"
+																	: "Post Reply"}
+														</button>
+													</div>
+												</div>
+											</div>
+										)}
 									</div>
 								))}
 							</div>
