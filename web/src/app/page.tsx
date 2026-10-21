@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {useEffect, useState} from "react";
 import ProjectCard from "@/components/ProjectCard";
+import FeaturedCarousel from "@/components/FeaturedCarousel";
 
 interface Project {
 	id: number;
@@ -21,18 +22,24 @@ interface Project {
 }
 
 export default function Home() {
-	const [featured, setFeatured] = useState<Project[]>([]);
+	const [spotlights, setSpotlights] = useState<Project[]>([]);
 	const [trending, setTrending] = useState<Project[]>([]);
 	const [newThisWeek, setNewThisWeek] = useState<Project[]>([]);
+	const [featured, setFeatured] = useState<Project[]>([]);
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
 		Promise.allSettled([
+			fetch("/api/projects?featured=true&limit=12").then((r) => r.json()),
 			fetch("/api/projects?limit=6&sort=trending").then((r) => r.json()),
 			fetch("/api/projects?limit=6&sort=new-this-week").then((r) => r.json()),
 			fetch("/api/projects?limit=6&sort=top-rated").then((r) => r.json()),
 		])
-			.then(([trendingRes, newRes, topRes]) => {
+			.then(([spotlightRes, trendingRes, newRes, topRes]) => {
+				if (spotlightRes.status === "fulfilled") {
+					const list: Project[] = spotlightRes.value.projects || [];
+					setSpotlights(list.filter((p) => p.featured === 1));
+				}
 				if (trendingRes.status === "fulfilled") {
 					setTrending(trendingRes.value.projects || []);
 				}
@@ -116,6 +123,9 @@ export default function Home() {
 					</div>
 				</div>
 			</section>
+
+			{/* Featured spotlights carousel */}
+			<FeaturedCarousel projects={spotlights} loading={loading} />
 
 			{/* Stats */}
 			<section className="px-4 sm:px-6 lg:px-8 pb-20">
@@ -385,22 +395,12 @@ export default function Home() {
 									strokeLinecap="round"
 									strokeLinejoin="round"
 								>
-									<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+									<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
 								</svg>
 							</div>
-							<h3 className="font-semibold text-lg text-moonlight mb-2">
-								No projects yet
-							</h3>
-							<p className="text-ash mb-6">
-								Be the first to submit a project to Stellar Wave
-								Hub
+							<p className="text-ash">
+								No rated projects yet. Be the first to rate a project!
 							</p>
-							<Link
-								href="/submit"
-								className="btn-nova inline-flex"
-							>
-								Submit a Project
-							</Link>
 						</div>
 					)}
 				</div>
