@@ -1,6 +1,10 @@
 import { getAuthUser } from "@/lib/auth";
 import { getSupabase } from "@/lib/firebase";
+import { checkRateLimit, getClientIp, rateLimitExceededResponse } from "@/lib/rate-limit";
 export const dynamic = "force-dynamic";
+
+// Rate limit: 20 uploads per hour per user (falls back to IP when anonymous)
+const UPLOAD_RATE_LIMIT = { limit: 20, windowMs: 60 * 60_000 };
 
 const BUCKET = "research-images";
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -8,6 +12,12 @@ const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 
 export async function POST(request: Request) {
   const auth = getAuthUser(request);
+  const rateLimitKey = auth
+    ? `upload:user:${auth.userId}`
+    : `upload:ip:${getClientIp(request)}`;
+  const rl = checkRateLimit(rateLimitKey, UPLOAD_RATE_LIMIT);
+  if (!rl.allowed) return rateLimitExceededResponse(rl.retryAfterSeconds);
+
   if (!auth) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
