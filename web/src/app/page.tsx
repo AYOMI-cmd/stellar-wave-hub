@@ -23,18 +23,20 @@ interface Project {
 export default function Home() {
 	const [featured, setFeatured] = useState<Project[]>([]);
 	const [trending, setTrending] = useState<Project[]>([]);
+	const [trendingFallback, setTrendingFallback] = useState(false);
 	const [newThisWeek, setNewThisWeek] = useState<Project[]>([]);
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
 		Promise.allSettled([
-			fetch("/api/projects?limit=6&sort=trending").then((r) => r.json()),
+			fetch("/api/projects/trending?limit=6").then((r) => r.json()),
 			fetch("/api/projects?limit=6&sort=new-this-week").then((r) => r.json()),
 			fetch("/api/projects?limit=6&sort=top-rated").then((r) => r.json()),
 		])
 			.then(([trendingRes, newRes, topRes]) => {
 				if (trendingRes.status === "fulfilled") {
 					setTrending(trendingRes.value.projects || []);
+					setTrendingFallback(Boolean(trendingRes.value.meta?.fallback));
 				}
 				if (newRes.status === "fulfilled") {
 					setNewThisWeek(newRes.value.projects || []);
@@ -184,7 +186,9 @@ export default function Home() {
 								Trending
 							</h2>
 							<p className="text-ash mt-1">
-								Projects gaining the fastest momentum and community rating velocity
+								{trendingFallback
+									? "No ratings in the last 7 days — showing the highest rated projects instead"
+									: "Projects with the most community ratings in the last 7 days"}
 							</p>
 						</div>
 						<Link
@@ -223,13 +227,16 @@ export default function Home() {
 									key={project.id}
 									project={project}
 									index={i}
-									badge={{label: "Trending", variant: "solar"}}
+									badge={{
+										label: trendingFallback ? "Top Rated" : "Trending",
+										variant: "solar",
+									}}
 								/>
 							))}
 						</div>
 					) : (
 						<div className="glass rounded-2xl p-12 text-center text-ash">
-							No trending projects yet. Rate a project to boost its velocity!
+							No projects to show yet. Rate a project to put it on the trending list!
 						</div>
 					)}
 				</div>
