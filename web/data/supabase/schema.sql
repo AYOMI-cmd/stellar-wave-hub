@@ -46,6 +46,8 @@ create table if not exists public.projects (
   featured_amount numeric default 100,
   featured_expires_at timestamptz,
   promo_code text,
+  owner_verified_at timestamptz,
+  owner_verified_address text,
   rejection_reason text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
