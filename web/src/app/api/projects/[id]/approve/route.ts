@@ -31,7 +31,13 @@ export async function PUT(
     const featured = parsed.data.featured ? 1 : 0;
     const status = featured ? "featured" : "approved";
 
-    await ref.update({ status, featured, updated_at: new Date().toISOString() });
+    await ref.update({
+      status,
+      featured,
+      claimed_by: null,
+      claimed_at: null,
+      updated_at: new Date().toISOString(),
+    });
     const updated = await ref.get();
     const projectData = updated.data()!;
 
