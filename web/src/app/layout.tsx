@@ -4,6 +4,8 @@ import {AuthProvider} from "@/context/AuthContext";
 import {QueryProvider} from "@/components/QueryProvider";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import CompareTray from "@/components/CompareTray";
+import {CompareProvider} from "@/context/CompareContext";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://stellarwavehub.com";
 
@@ -76,11 +78,14 @@ export default function RootLayout({
 				<div className="starfield" />
 				<QueryProvider>
 					<AuthProvider>
-						<Navbar />
-						<main className="flex-1 relative z-10 pt-16">
-							{children}
-						</main>
-						<Footer />
+						<CompareProvider>
+							<Navbar />
+							<main className="flex-1 relative z-10 pt-16">
+								{children}
+							</main>
+							<Footer />
+							<CompareTray />
+						</CompareProvider>
 					</AuthProvider>
 				</QueryProvider>
 			</body>
