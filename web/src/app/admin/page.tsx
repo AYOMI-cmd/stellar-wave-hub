@@ -346,6 +346,330 @@ function PromoCodesTab({ token }: { token: string | null }) {
   );
 }
 
+// ─── User management ─────────────────────────────────────────────────
+
+interface AdminUser {
+  id: number;
+  username: string;
+  email: string | null;
+  role: string;
+  created_at: string | null;
+}
+
+interface AdminUsersResponse {
+  users: AdminUser[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+const MANAGED_ROLES = ["contributor", "maintainer", "admin"] as const;
+
+function UserRoleEditor({
+  user,
+  currentUserId,
+  isPending,
+  onConfirm,
+}: {
+  user: AdminUser;
+  currentUserId: number;
+  isPending: boolean;
+  onConfirm: (userId: number, role: string) => void;
+}) {
+  const [nextRole, setNextRole] = useState<string | null>(null);
+  const isSelf = user.id === currentUserId;
+
+  return (
+    <AlertDialog
+      open={nextRole !== null}
+      onOpenChange={(open) => {
+        if (!open && !isPending) setNextRole(null);
+      }}
+    >
+      <Select
+        value={user.role}
+        onValueChange={(role) => setNextRole(role)}
+        disabled={isSelf || isPending}
+      >
+        <SelectTrigger
+          aria-label={`Role for ${user.username}`}
+          className="w-40"
+          title={isSelf ? "You cannot change your own role" : undefined}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {MANAGED_ROLES.map((role) => (
+            <SelectItem key={role} value={role}>
+              {role[0].toUpperCase() + role.slice(1)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Change {user.username}&apos;s role?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will change their access from{" "}
+            <span className="font-medium text-moonlight">{user.role}</span> to{" "}
+            <span className="font-medium text-moonlight">{nextRole}</span>.
+            {user.role === "admin" && nextRole !== "admin"
+              ? " The last administrator cannot be demoted."
+              : ""}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={isPending}
+            className="bg-nova/15 text-nova-bright border-nova/20 hover:bg-nova/25 focus:ring-nova/30"
+            onClick={() => {
+              if (nextRole) onConfirm(user.id, nextRole);
+              setNextRole(null);
+            }}
+          >
+            {isPending ? "Saving..." : "Confirm role change"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+function UsersTab({
+  token,
+  currentUserId,
+}: {
+  token: string | null;
+  currentUserId: number;
+}) {
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [actionError, setActionError] = useState("");
+
+  const usersQuery = useQuery<AdminUsersResponse>({
+    queryKey: ["admin-users", search, roleFilter, page],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        search,
+        role: roleFilter,
+        page: String(page),
+      });
+      const response = await fetch(`/api/users/list?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to load users");
+      return data;
+    },
+    enabled: !!token,
+  });
+
+  const updateRole = useMutation({
+    mutationFn: async ({ userId, role }: { userId: number; role: string }) => {
+      const response = await fetch("/api/users/list", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userId, role }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to update role");
+    },
+    onMutate: () => setActionError(""),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+    },
+    onError: (error) => {
+      setActionError(error.message);
+    },
+  });
+
+  const users = usersQuery.data?.users ?? [];
+  const total = usersQuery.data?.total ?? 0;
+  const pageSize = usersQuery.data?.pageSize ?? 20;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
+
+  return (
+    <section className="space-y-5">
+      <div className="glass rounded-2xl p-5 sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-plasma-bright/80">
+              Community access
+            </p>
+            <h2 className="mt-1 text-xl font-semibold text-starlight">
+              User directory
+            </h2>
+            <p className="mt-1 text-sm text-ash">
+              Search accounts and manage their platform role.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(16rem,1fr)_10rem] lg:w-[30rem]">
+            <label className="space-y-1.5">
+              <span className="text-xs font-medium text-ash">Search users</span>
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
+                placeholder="Username or email"
+                className="input-field w-full text-sm"
+              />
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-xs font-medium text-ash">Role</span>
+              <select
+                value={roleFilter}
+                onChange={(event) => {
+                  setRoleFilter(event.target.value);
+                  setPage(1);
+                }}
+                className="input-field w-full text-sm"
+              >
+                <option value="all">All roles</option>
+                {MANAGED_ROLES.map((role) => (
+                  <option key={role} value={role}>
+                    {role[0].toUpperCase() + role.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {actionError && (
+        <div
+          role="alert"
+          className="rounded-xl border border-supernova/25 bg-supernova/10 px-4 py-3 text-sm text-supernova"
+        >
+          {actionError}
+        </div>
+      )}
+
+      <div className="glass overflow-hidden rounded-2xl">
+        {usersQuery.isLoading ? (
+          <div className="space-y-3 p-6" aria-label="Loading users">
+            {[0, 1, 2, 3].map((row) => (
+              <div key={row} className="h-12 animate-pulse rounded-lg bg-dust/15" />
+            ))}
+          </div>
+        ) : usersQuery.isError ? (
+          <div className="px-6 py-12 text-center">
+            <p role="alert" className="text-sm text-supernova">
+              {usersQuery.error.message}
+            </p>
+            <button
+              type="button"
+              onClick={() => usersQuery.refetch()}
+              className="btn-ghost mt-4 text-sm"
+            >
+              Try again
+            </button>
+          </div>
+        ) : users.length === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <p className="font-medium text-moonlight">No users found</p>
+            <p className="mt-1 text-sm text-ash">
+              Try a different search or role filter.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[42rem] text-left">
+              <thead className="border-b border-dust/25 bg-stardust/35">
+                <tr className="text-[11px] uppercase tracking-[0.16em] text-ash">
+                  <th scope="col" className="px-6 py-4 font-medium">User</th>
+                  <th scope="col" className="px-6 py-4 font-medium">Role</th>
+                  <th scope="col" className="px-6 py-4 font-medium">Joined</th>
+                  <th scope="col" className="px-6 py-4 text-right font-medium">Access</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-dust/15">
+                {users.map((listedUser) => (
+                  <tr key={listedUser.id} className="transition-colors hover:bg-stardust/25">
+                    <td className="px-6 py-4">
+                      <p className="font-medium text-moonlight">{listedUser.username}</p>
+                      <p className="mt-0.5 text-xs text-ash">
+                        {listedUser.email || "No email on file"}
+                        {listedUser.id === currentUserId && (
+                          <span className="ml-2 text-plasma-bright">You</span>
+                        )}
+                      </p>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex rounded-full border border-dust/30 bg-stardust/50 px-2.5 py-1 text-xs capitalize text-moonlight">
+                        {listedUser.role}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-ash">
+                      {listedUser.created_at
+                        ? new Date(listedUser.created_at).toLocaleDateString()
+                        : "—"}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex justify-end">
+                        <UserRoleEditor
+                          user={listedUser}
+                          currentUserId={currentUserId}
+                          isPending={updateRole.isPending}
+                          onConfirm={(userId, role) =>
+                            updateRole.mutate({ userId, role })
+                          }
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <footer className="flex flex-col gap-3 border-t border-dust/20 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-ash" aria-live="polite">
+            {total === 0
+              ? "0 users"
+              : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} of ${total} users`}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              disabled={page <= 1 || usersQuery.isLoading}
+              className="btn-ghost !px-3 !py-1.5 text-xs disabled:opacity-40"
+            >
+              Previous
+            </button>
+            <span className="min-w-16 text-center text-xs text-ash">
+              Page {page} / {pageCount}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+              disabled={page >= pageCount || usersQuery.isLoading}
+              className="btn-ghost !px-3 !py-1.5 text-xs disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        </footer>
+      </div>
+    </section>
+  );
+}
+
 // ─── Reject Dialog ──────────────────────────────────────────────────
 
 const REJECT_REASON_TEMPLATES = [
@@ -1371,6 +1695,7 @@ export default function AdminPage() {
               )}
             </TabsTrigger>
             <TabsTrigger value="promos">Promo Codes</TabsTrigger>
+            <TabsTrigger value="users">Users</TabsTrigger>
           </TabsList>
 
           {/* ── Pending tab ── */}
@@ -1518,6 +1843,10 @@ export default function AdminPage() {
 
           <TabsContent value="promos">
             <PromoCodesTab token={token} />
+          </TabsContent>
+
+          <TabsContent value="users">
+            <UsersTab token={token} currentUserId={user.id} />
           </TabsContent>
         </Tabs>
       </div>
