@@ -22,6 +22,7 @@ export async function GET() {
           slug: p.slug,
           description: p.description,
           category: p.category,
+          tags: p.tags || "",
           stellar_network: p.stellar_network || "mainnet",
           github_url: p.github_url,
           github_repos: p.github_repos || [],

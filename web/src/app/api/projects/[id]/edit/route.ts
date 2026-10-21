@@ -17,12 +17,22 @@ export async function PUT(
   if (!doc.exists) return Response.json({ error: "Project not found" }, { status: 404 });
 
   const project = doc.data()!;
-  if (project.user_id !== auth.userId && !hasMinRole(auth.role, "admin")) {
+  const isOwner = project.user_id === auth.userId;
+  const isAdmin = hasMinRole(auth.role, "admin");
+  if (!isOwner && !isAdmin && !hasMinRole(auth.role, "maintainer")) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const parsed = await parseJsonBody(request, editProjectSchema);
   if (!parsed.success) return parsed.response;
+  if (
+    !isOwner &&
+    !isAdmin &&
+    (project.status !== "submitted" ||
+      Object.keys(parsed.data).some((key) => key !== "category" && key !== "tags"))
+  ) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   try {
     const body = parsed.data;
