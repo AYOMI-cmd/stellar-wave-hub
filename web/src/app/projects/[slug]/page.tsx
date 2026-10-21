@@ -16,6 +16,17 @@ import {
 	isRegisteredOnChain,
 	type OnChainRating,
 } from "@/lib/ratingContract";
+import {
+	AlertDialog,
+	AlertDialogContent,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
+import {Textarea} from "@/components/ui/textarea";
+import {PROJECT_REPORT_REASONS} from "@/lib/validation/schemas/reports";
 
 interface Project {
 	id: number;
@@ -146,6 +157,31 @@ export default function ProjectDetailPage({
 	const [reportMsg, setReportMsg] = useState("");
 	const [reportedIds, setReportedIds] = useState<number[]>([]);
 
+	// Report project state
+	const [projectReportOpen, setProjectReportOpen] = useState(false);
+	const [projectReportReason, setProjectReportReason] = useState<string>("spam");
+	const [projectReportNote, setProjectReportNote] = useState("");
+	const [projectReportBusy, setProjectReportBusy] = useState(false);
+	const [projectReportMsg, setProjectReportMsg] = useState("");
+	const [projectReportSuccess, setProjectReportSuccess] = useState(false);
+	const [hasReportedProject, setHasReportedProject] = useState(false);
+
+	useEffect(() => {
+		if (!token || !project) return;
+		let ignore = false;
+		fetch(`/api/reports?target_type=project&target_id=${project.id}`, {
+			headers: {Authorization: `Bearer ${token}`},
+		})
+			.then((r) => r.json())
+			.then((data) => {
+				if (!ignore && data?.hasOpenReport) setHasReportedProject(true);
+			})
+			.catch(() => {});
+		return () => {
+			ignore = true;
+		};
+	}, [project, token]);
+
 	useEffect(() => {
 		fetch(`/api/projects/${slug}`)
 			.then((r) => r.json())
@@ -220,6 +256,44 @@ export default function ProjectDetailPage({
 			setReportMsg(err instanceof Error ? err.message : "Failed to report");
 		}
 		setReportBusy(false);
+	};
+
+	const submitProjectReport = async (e: React.FormEvent<HTMLFormElement>) => {
+		e.preventDefault();
+		if (!token || !project) return;
+		setProjectReportBusy(true);
+		setProjectReportMsg("");
+
+		try {
+			const res = await fetch("/api/reports", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({
+					target_type: "project",
+					target_id: project.id,
+					reason: projectReportReason,
+					note: projectReportNote.trim() || undefined,
+				}),
+			});
+			const data = await res.json();
+			if (!res.ok) throw new Error(data.error || "Failed to report project");
+
+			setHasReportedProject(true);
+			setProjectReportSuccess(true);
+			setTimeout(() => {
+				setProjectReportOpen(false);
+				setProjectReportSuccess(false);
+				setProjectReportNote("");
+				setProjectReportReason("spam");
+			}, 1500);
+		} catch (err) {
+			setProjectReportMsg(err instanceof Error ? err.message : "Failed to report project");
+		} finally {
+			setProjectReportBusy(false);
+		}
 	};
 
 	const submitRating = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -400,33 +474,47 @@ export default function ProjectDetailPage({
 				</div>
 
 				{/* Links */}
-				<div className="flex gap-3 mt-5 flex-wrap">
-					{project.website_url && (
-						<a
-							href={project.website_url}
-							target="_blank"
-							rel="noopener noreferrer"
-							className="btn-ghost text-sm !py-1.5 inline-flex items-center gap-1.5"
-						>
-							<svg
-								width="14"
-								height="14"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="2"
-							>
-								<circle cx="12" cy="12" r="10" />
-								<path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-							</svg>
-							Website
-						</a>
-					)}
-					{project.github_repos && project.github_repos.length > 0 ? (
-						project.github_repos.map((repo, i) => (
+				<div className="flex gap-3 mt-5 flex-wrap items-center justify-between">
+					<div className="flex gap-3 flex-wrap items-center">
+						{project.website_url && (
 							<a
-								key={i}
-								href={repo.url}
+								href={project.website_url}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="btn-ghost text-sm !py-1.5 inline-flex items-center gap-1.5"
+							>
+								<svg
+									width="14"
+									height="14"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									strokeWidth="2"
+								>
+									<circle cx="12" cy="12" r="10" />
+									<path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+								</svg>
+								Website
+							</a>
+						)}
+						{project.github_repos && project.github_repos.length > 0 ? (
+							project.github_repos.map((repo, i) => (
+								<a
+									key={i}
+									href={repo.url}
+									target="_blank"
+									rel="noopener noreferrer"
+									className="btn-ghost text-sm !py-1.5 inline-flex items-center gap-1.5"
+								>
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+										<path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+									</svg>
+									{repo.label}
+								</a>
+							))
+						) : project.github_url && (
+							<a
+								href={project.github_url}
 								target="_blank"
 								rel="noopener noreferrer"
 								className="btn-ghost text-sm !py-1.5 inline-flex items-center gap-1.5"
@@ -434,27 +522,52 @@ export default function ProjectDetailPage({
 								<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
 									<path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
 								</svg>
-								{repo.label}
+								GitHub
 							</a>
-						))
-					) : project.github_url && (
-						<a
-							href={project.github_url}
-							target="_blank"
-							rel="noopener noreferrer"
-							className="btn-ghost text-sm !py-1.5 inline-flex items-center gap-1.5"
-						>
-							<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-								<path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-							</svg>
-							GitHub
-						</a>
-					)}
-					{project.stellar_account_id && (
-						<StellarAddressLink address={project.stellar_account_id} type="account" network={project.stellar_network} />
-					)}
-					{project.stellar_contract_id && (
-						<StellarAddressLink address={project.stellar_contract_id} type="contract" network={project.stellar_network} />
+						)}
+						{project.stellar_account_id && (
+							<StellarAddressLink address={project.stellar_account_id} type="account" network={project.stellar_network} />
+						)}
+						{project.stellar_contract_id && (
+							<StellarAddressLink address={project.stellar_contract_id} type="contract" network={project.stellar_network} />
+						)}
+					</div>
+
+					{/* Project Report Button */}
+					{(!user || user.id !== project.user_id) && (
+						<div className="flex items-center">
+							{hasReportedProject ? (
+								<button
+									type="button"
+									disabled
+									className="btn-ghost text-xs !py-1.5 inline-flex items-center gap-1.5 border-supernova/30 text-supernova opacity-80 cursor-default"
+									title="You already have an open report for this project"
+								>
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+										<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+										<line x1="4" y1="22" x2="4" y2="15" stroke="currentColor" strokeWidth="2" />
+									</svg>
+									Reported
+								</button>
+							) : (
+								<button
+									type="button"
+									onClick={() => {
+										setProjectReportMsg("");
+										setProjectReportSuccess(false);
+										setProjectReportOpen(true);
+									}}
+									className="btn-ghost text-xs !py-1.5 inline-flex items-center gap-1.5 text-ash hover:text-supernova hover:border-supernova/40 transition-colors"
+									aria-label="Report project"
+								>
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+										<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+										<line x1="4" y1="22" x2="4" y2="15" />
+									</svg>
+									Report project
+								</button>
+							)}
+						</div>
 					)}
 				</div>
 			</div>
@@ -1000,6 +1113,144 @@ export default function ProjectDetailPage({
 					</div>
 				)}
 			</div>
+
+			{/* Project Report Dialog */}
+			<AlertDialog open={projectReportOpen} onOpenChange={setProjectReportOpen}>
+				<AlertDialogContent className="max-w-md">
+					<AlertDialogHeader>
+						<AlertDialogTitle className="flex items-center gap-2">
+							<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--supernova)" strokeWidth="2">
+								<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+								<line x1="4" y1="22" x2="4" y2="15" />
+							</svg>
+							Report &ldquo;{project.name}&rdquo;
+						</AlertDialogTitle>
+						<AlertDialogDescription>
+							Flag this project if you notice spam, fraudulent activity, or inaccurate information. Reports are reviewed by our team.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+
+					{!user ? (
+						<div className="py-4 text-center space-y-4">
+							<p className="text-sm text-ash">
+								You must be signed in to report a project.
+							</p>
+							<Link
+								href={`/login?redirect=/projects/${project.slug}`}
+								className="btn-nova inline-flex"
+								onClick={() => setProjectReportOpen(false)}
+							>
+								Sign in to report
+							</Link>
+						</div>
+					) : hasReportedProject ? (
+						<div className="py-4 text-center space-y-3">
+							<div className="w-12 h-12 mx-auto rounded-full bg-supernova/15 border border-supernova/30 flex items-center justify-center text-supernova">
+								<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+									<polyline points="20 6 9 17 4 12" />
+								</svg>
+							</div>
+							<p className="text-sm font-medium text-starlight">
+								You already have an open report for this project
+							</p>
+							<p className="text-xs text-ash">
+								Our team is reviewing your report. You can only have one open report per project at a time.
+							</p>
+							<div className="pt-2">
+								<button
+									type="button"
+									onClick={() => setProjectReportOpen(false)}
+									className="btn-ghost !py-2 !px-4 text-sm"
+								>
+									Close
+								</button>
+							</div>
+						</div>
+					) : projectReportSuccess ? (
+						<div className="py-4 text-center space-y-3">
+							<div className="w-12 h-12 mx-auto rounded-full bg-aurora/15 border border-aurora/30 flex items-center justify-center text-aurora-bright">
+								<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+									<polyline points="20 6 9 17 4 12" />
+								</svg>
+							</div>
+							<p className="text-sm font-semibold text-aurora-bright">
+								Report submitted successfully
+							</p>
+							<p className="text-xs text-ash">
+								Thank you for helping maintain a safe and transparent ecosystem.
+							</p>
+						</div>
+					) : (
+						<form onSubmit={submitProjectReport} className="space-y-4">
+							{projectReportMsg && (
+								<div className="p-3 rounded-xl bg-supernova/10 border border-supernova/20 text-xs text-supernova">
+									{projectReportMsg}
+								</div>
+							)}
+
+							<div>
+								<label className="block text-xs font-semibold uppercase tracking-wider text-ash mb-2">
+									Reason <span className="text-supernova">*</span>
+								</label>
+								<div className="grid grid-cols-2 gap-2">
+									{PROJECT_REPORT_REASONS.map((r) => (
+										<button
+											key={r.value}
+											type="button"
+											onClick={() => setProjectReportReason(r.value)}
+											className={`p-2.5 rounded-xl text-left border transition-all ${
+												projectReportReason === r.value
+													? "bg-supernova/15 border-supernova text-starlight shadow-sm"
+													: "bg-nebula/60 border-dust/30 text-ash hover:text-moonlight hover:border-dust/60"
+											}`}
+										>
+											<div className="text-xs font-medium text-starlight">{r.label}</div>
+											<div className="text-[11px] text-ash/80 mt-0.5 leading-tight">{r.description}</div>
+										</button>
+									))}
+								</div>
+							</div>
+
+							<div>
+								<label className="block text-xs font-semibold uppercase tracking-wider text-ash mb-1.5">
+									Note <span className="text-ash/60 font-normal lowercase">(optional details)</span>
+								</label>
+								<Textarea
+									value={projectReportNote}
+									onChange={(e) => setProjectReportNote(e.target.value)}
+									placeholder="Describe the issue, provide links or details to assist moderation..."
+									rows={3}
+									maxLength={1000}
+									className="text-xs"
+								/>
+								<div className="text-[10px] text-ash/60 text-right mt-1">
+									{projectReportNote.length}/1000
+								</div>
+							</div>
+
+							<AlertDialogFooter>
+								<AlertDialogCancel
+									type="button"
+									onClick={() => {
+										setProjectReportOpen(false);
+										setProjectReportMsg("");
+									}}
+									disabled={projectReportBusy}
+								>
+									Cancel
+								</AlertDialogCancel>
+								<button
+									type="submit"
+									disabled={projectReportBusy}
+									className="inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-semibold transition-all bg-supernova text-void hover:bg-supernova/90 disabled:opacity-50"
+								>
+									{projectReportBusy ? "Submitting..." : "Submit report"}
+								</button>
+							</AlertDialogFooter>
+						</form>
+					)}
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	);
 }
