@@ -3,7 +3,9 @@
 import {useEffect, useState, use} from "react";
 import {useAuth} from "@/context/AuthContext";
 import StarRating from "@/components/StarRating";
+import Avatar from "@/components/Avatar";
 import Link from "next/link";
+import Image from "next/image";
 import {
 	ON_CHAIN_ENABLED,
 	rateProjectOnChain,
@@ -32,6 +34,7 @@ interface Project {
 	github_repos?: { label: string; url: string }[];
 	user_id: number;
 	username?: string;
+	logo_url?: string;
 	created_at: string;
 }
 
@@ -44,6 +47,7 @@ interface Rating {
 	review_text?: string;
 	tx_hash?: string;
 	username: string;
+	avatar_url?: string | null;
 	user_id: number;
 	created_at: string;
 	helpful_count?: number;
@@ -137,16 +141,17 @@ export default function ProjectDetailPage({
 	const [ratingStep, setRatingStep] = useState<"idle" | "onchain" | "saving">("idle");
 	const [lastTxHash, setLastTxHash] = useState<string | null>(null);
 
-	const [reviewSort, setReviewSort] = useState<"helpful" | "recent" | "highest" | "lowest">("helpful");
-	const [votingRatingId, setVotingRatingId] = useState<number | null>(null);
+	// Report review state
+	const [reportingId, setReportingId] = useState<number | null>(null);
+	const [reportReason, setReportReason] = useState("spam");
+	const [reportBusy, setReportBusy] = useState(false);
+	const [reportMsg, setReportMsg] = useState("");
+	const [reportedIds, setReportedIds] = useState<number[]>([]);
 
-	const fetchProjectAndRatings = async (sortMode = reviewSort) => {
-		try {
-			const headers: Record<string, string> = {};
-			if (token) headers["Authorization"] = `Bearer ${token}`;
-			const res = await fetch(`/api/projects/${slug}?sort=${sortMode}`, { headers });
-			const data = await res.json();
-			if (res.ok) {
+	useEffect(() => {
+		fetch(`/api/projects/${slug}`)
+			.then((r) => r.json())
+			.then((data) => {
 				setProject(data.project);
 				setRatings(data.ratings || []);
 				setAverages(data.averages);
@@ -237,6 +242,35 @@ export default function ProjectDetailPage({
 			.then((rated) => setAlreadyRatedOnChain(rated))
 			.catch(() => {});
 	}, [isOnChainProject, project, user]);
+
+	const submitReport = async (e: React.FormEvent<HTMLFormElement>) => {
+		e.preventDefault();
+		if (!token || reportingId === null) return;
+		setReportBusy(true);
+		setReportMsg("");
+		try {
+			const res = await fetch("/api/reports", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({
+					target_type: "rating",
+					target_id: reportingId,
+					reason: reportReason,
+				}),
+			});
+			const data = await res.json();
+			if (!res.ok) throw new Error(data.error);
+			setReportedIds((p) => [...p, reportingId]);
+			setReportingId(null);
+			setReportReason("spam");
+		} catch (err) {
+			setReportMsg(err instanceof Error ? err.message : "Failed to report");
+		}
+		setReportBusy(false);
+	};
 
 	const submitRating = async (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
@@ -340,9 +374,19 @@ export default function ProjectDetailPage({
 			{/* Header */}
 			<div className="mb-8 animate-in">
 				<div className="flex items-start gap-4 mb-4">
-					<div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-nova/30 to-plasma/30 border border-nova/20 flex items-center justify-center text-2xl font-bold text-nova-bright shrink-0">
-						{project.name[0]}
-					</div>
+					<div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-nova/30 to-plasma/30 border border-nova/20 flex items-center justify-center text-2xl font-bold text-nova-bright shrink-0 overflow-hidden">
+					{project.logo_url ? (
+						<Image
+							src={project.logo_url}
+							alt={`${project.name} logo`}
+							width={64}
+							height={64}
+							className="w-full h-full object-cover"
+						/>
+					) : (
+						project.name[0]
+					)}
+				</div>
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-3 flex-wrap">
 							<h1 className="font-display font-bold text-3xl sm:text-4xl text-starlight">
@@ -796,65 +840,21 @@ export default function ProjectDetailPage({
 						{/* Existing ratings */}
 						{ratings.length > 0 ? (
 							<div className="space-y-4">
-								<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-dust/20">
-									<h3 className="font-semibold text-starlight text-base">
-										User Reviews ({ratings.length})
-									</h3>
-									<div className="flex items-center gap-2">
-										<label htmlFor="review-sort" className="text-xs text-ash font-medium">
-											Sort by:
-										</label>
-										<select
-											id="review-sort"
-											value={reviewSort}
-											onChange={(e) => setReviewSort(e.target.value as "helpful" | "recent" | "highest" | "lowest")}
-											className="bg-stardust/80 border border-dust/40 text-starlight text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-nova transition-colors cursor-pointer"
-										>
-											<option value="helpful">Most Helpful</option>
-											<option value="recent">Most Recent</option>
-											<option value="highest">Highest Score</option>
-											<option value="lowest">Lowest Score</option>
-										</select>
-									</div>
-								</div>
-
-								{ratings.map((rating) => {
-									const isAuthor = user?.id === rating.user_id;
-									const isVotingThis = votingRatingId === rating.id;
-									const helpfulCount = rating.helpful_count || 0;
-									const hasVoted = Boolean(rating.has_voted);
-
-									return (
-										<div
-											key={rating.id}
-											className="glass rounded-2xl p-6 transition-all"
-										>
-											<div className="flex items-center justify-between mb-3">
-												<div className="flex items-center gap-3">
-													<div className="w-9 h-9 rounded-full bg-gradient-to-br from-nova/40 to-comet/40 flex items-center justify-center text-xs font-bold text-white">
-														{rating.username[0].toUpperCase()}
-													</div>
-													<div>
-														<span className="font-medium text-starlight text-sm">
-															{rating.username}
-														</span>
-														<p className="text-xs text-ash">
-															{new Date(rating.created_at).toLocaleDateString()}
-														</p>
-													</div>
-												</div>
-												<div className="flex items-center gap-1">
-													<svg
-														width="16"
-														height="16"
-														viewBox="0 0 24 24"
-														fill="var(--solar)"
-														stroke="none"
-													>
-														<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-													</svg>
-													<span className="font-semibold text-solar-bright">
-														{rating.score}
+								{ratings.map((rating) => (
+									<div
+										key={rating.id}
+										className="glass rounded-2xl p-6"
+									>
+										<div className="flex items-center justify-between mb-3">
+											<div className="flex items-center gap-3">
+												<Avatar
+													username={rating.username}
+													avatarUrl={rating.avatar_url}
+													className="w-9 h-9 text-xs"
+												/>
+												<div>
+													<span className="font-medium text-starlight text-sm">
+														{rating.username}
 													</span>
 												</div>
 											</div>
@@ -863,82 +863,50 @@ export default function ProjectDetailPage({
 													{rating.review_text}
 												</p>
 											)}
-											<div className="flex gap-4 text-xs text-ash flex-wrap items-center justify-between pt-2 border-t border-dust/10">
-												<div className="flex gap-3 flex-wrap items-center">
-													{rating.purpose_score && (
-														<span>Purpose: {rating.purpose_score}/5</span>
-													)}
-													{rating.innovation_score && (
-														<span>Innovation: {rating.innovation_score}/5</span>
-													)}
-													{rating.usability_score && (
-														<span>Usability: {rating.usability_score}/5</span>
-													)}
-													{rating.tx_hash && (
-														<a
-															href={explorerTxUrl(rating.tx_hash)}
-															target="_blank"
-															rel="noopener noreferrer"
-															className="tag tag-plasma text-[10px] inline-flex items-center gap-1"
-															title={`On-chain tx: ${rating.tx_hash}`}
-														>
-															<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-																<path d="M12 2L2 7l10 5 10-5-10-5z" />
-																<path d="M2 17l10 5 10-5" />
-																<path d="M2 12l10 5 10-5" />
-															</svg>
-															On-chain
-														</a>
-													)}
-												</div>
-
-												{/* Helpful Upvote Button */}
-												<div className="flex items-center gap-2">
+											{user && user.id !== rating.user_id && (
+												reportedIds.includes(rating.id) ? (
+													<span className="ml-auto text-ash">Reported</span>
+												) : (
 													<button
 														type="button"
-														disabled={isVotingThis || isAuthor || !user}
-														onClick={() => handleVoteHelpful(rating.id, hasVoted)}
-														title={
-															!user
-																? "Log in to vote"
-																: isAuthor
-																	? "You cannot vote on your own review"
-																	: hasVoted
-																		? "Remove helpful vote"
-																		: "Mark as helpful"
-														}
-														className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-															hasVoted
-																? "bg-aurora/20 text-aurora-bright border border-aurora/40 hover:bg-aurora/30 shadow-[0_0_12px_rgba(74,222,128,0.2)]"
-																: isAuthor || !user
-																	? "bg-stardust/40 text-ash/60 border border-dust/20 cursor-not-allowed"
-																	: "bg-stardust/60 text-moonlight hover:text-starlight hover:bg-stardust border border-dust/40 cursor-pointer"
-														} ${isVotingThis ? "opacity-50 pointer-events-none" : ""}`}
+														onClick={() => {
+															setReportingId(reportingId === rating.id ? null : rating.id);
+															setReportMsg("");
+														}}
+														className="ml-auto inline-flex items-center gap-1 text-ash hover:text-supernova transition-colors"
+														aria-label={`Report review by ${rating.username}`}
 													>
-														<svg
-															width="14"
-															height="14"
-															viewBox="0 0 24 24"
-															fill={hasVoted ? "currentColor" : "none"}
-															stroke="currentColor"
-															strokeWidth="2"
-															strokeLinecap="round"
-															strokeLinejoin="round"
-															className={`transition-transform ${hasVoted ? "scale-110" : ""}`}
-														>
-															<path d="M7 10v12" />
-															<path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z" />
+														<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+															<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+															<line x1="4" y1="22" x2="4" y2="15" />
 														</svg>
-														<span>Helpful</span>
-														<span className={`px-1.5 py-0.2 rounded font-semibold text-[11px] ${hasVoted ? "bg-aurora/30 text-aurora-bright" : "bg-dust/30 text-ash"}`}>
-															{helpfulCount}
-														</span>
+														Report
 													</button>
-												</div>
-											</div>
+												)
+											)}
 										</div>
-									);
-								})}
+										{reportingId === rating.id && (
+											<form onSubmit={submitReport} className="mt-4 flex items-center gap-3 flex-wrap">
+												<select
+													className="input-field !w-auto"
+													value={reportReason}
+													onChange={(e) => setReportReason(e.target.value)}
+													aria-label="Report reason"
+												>
+													<option value="spam">Spam</option>
+													<option value="abusive">Abusive or offensive</option>
+													<option value="off_topic">Off topic</option>
+													<option value="misleading">Misleading</option>
+													<option value="other">Other</option>
+												</select>
+												<button type="submit" disabled={reportBusy} className="btn-nova !py-1.5 text-sm disabled:opacity-50">
+													{reportBusy ? "Sending..." : "Submit report"}
+												</button>
+												{reportMsg && <span className="text-xs text-supernova">{reportMsg}</span>}
+											</form>
+										)}
+									</div>
+								))}
 							</div>
 						) : (
 							<div className="glass rounded-2xl p-12 text-center">

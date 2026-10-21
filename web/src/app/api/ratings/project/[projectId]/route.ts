@@ -22,28 +22,15 @@ export async function GET(
       const r = d.data();
       const ratingId = Number(r.numericId ?? d.id);
       let username = "unknown";
+      let avatar_url: string | null = null;
       if (r.user_id) {
         const u = await usersCol.ref.doc(String(r.user_id)).get();
-        if (u.exists) username = u.data()!.username;
+        if (u.exists) {
+          username = u.data()!.username;
+          avatar_url = u.data()!.avatar_url ?? null;
+        }
       }
-
-      // Fetch votes for this rating
-      const votesSnap = await ratingVotesCol.ref
-        .where("rating_id", "==", ratingId)
-        .get();
-
-      const helpful_count = votesSnap.docs.length;
-      const has_voted = currentUserId
-        ? votesSnap.docs.some((doc) => doc.data().user_id === currentUserId)
-        : false;
-
-      return {
-        ...r,
-        id: ratingId,
-        username,
-        helpful_count,
-        has_voted,
-      };
+      return { ...r, id: r.numericId ?? d.id, username, avatar_url };
     })
   );
 
