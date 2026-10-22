@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { buildProjectJsonLd } from "@/lib/projectJsonLd";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://stellarwavehub.com";
 const apiBase = process.env.NEXT_PUBLIC_API_URL || siteUrl;
@@ -50,6 +51,39 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-export default function ProjectLayout({ children }: Props) {
-  return children;
+export default async function ProjectLayout({ children, params }: Props) {
+  const { slug } = await params;
+  let jsonLd: ReturnType<typeof buildProjectJsonLd> | null = null;
+
+  try {
+    const res = await fetch(`${apiBase}/api/projects/${slug}`, {
+      next: { revalidate: 300 },
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.project) {
+        jsonLd = buildProjectJsonLd(
+          { ...data.project, slug },
+          data.averages,
+          siteUrl
+        );
+      }
+    }
+  } catch {
+    // Graceful fallback if project details cannot be retrieved
+  }
+
+  return (
+    <>
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      )}
+      {children}
+    </>
+  );
 }
+
