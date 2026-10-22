@@ -3,6 +3,7 @@ import { getAuthUser, hasMinRole } from "@/lib/auth";
 import { parseJsonBody } from "@/lib/validation/parse-body";
 import { featuredProjectSchema } from "@/lib/validation/schemas/featured";
 import { checkRateLimit, rateLimitExceededResponse } from "@/lib/rate-limit";
+import { revalidatePublicProjectCache } from "@/lib/public-project-cache";
 export const dynamic = "force-dynamic";
 
 const moderationActionLimit = { limit: 30, windowMs: 60_000 };
@@ -32,6 +33,7 @@ export async function PUT(
     const status = featured ? "featured" : "approved";
 
     await ref.update({ status, featured, updated_at: new Date().toISOString() });
+    revalidatePublicProjectCache();
     const updated = await ref.get();
     const projectData = updated.data()!;
 
