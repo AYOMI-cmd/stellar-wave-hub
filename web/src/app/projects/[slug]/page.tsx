@@ -53,6 +53,8 @@ interface Rating {
 	avatar_url?: string | null;
 	user_id: number;
 	created_at: string;
+	helpful_count?: number;
+	has_voted?: boolean;
 }
 
 interface Averages {
@@ -151,10 +153,58 @@ export default function ProjectDetailPage({
 				setProject(data.project);
 				setRatings(data.ratings || []);
 				setAverages(data.averages);
-			})
-			.catch(() => {})
-			.finally(() => setLoading(false));
-	}, [slug]);
+			}
+		} catch {
+			// ignore
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	useEffect(() => {
+		fetchProjectAndRatings(reviewSort);
+	}, [slug, reviewSort, token]);
+
+	const handleVoteHelpful = async (ratingId: number, currentlyVoted: boolean) => {
+		if (!token) {
+			alert("Please log in to vote on reviews.");
+			return;
+		}
+
+		setVotingRatingId(ratingId);
+		try {
+			const method = currentlyVoted ? "DELETE" : "POST";
+			const res = await fetch(`/api/ratings/${ratingId}/vote`, {
+				method,
+				headers: {
+					Authorization: `Bearer ${token}`,
+				},
+			});
+			const data = await res.json();
+			if (!res.ok) {
+				alert(data.error || "Failed to update vote");
+				return;
+			}
+
+			// Update rating item in local state
+			setRatings((prev) =>
+				prev.map((r) => {
+					if (r.id === ratingId) {
+						return {
+							...r,
+							helpful_count: data.helpful_count,
+							has_voted: data.has_voted,
+						};
+					}
+					return r;
+				})
+			);
+		} catch (err) {
+			console.error("Failed to vote:", err);
+		} finally {
+			setVotingRatingId(null);
+		}
+	};
 
 	useEffect(() => {
 		if (project?.stellar_account_id) {
@@ -263,10 +313,7 @@ export default function ProjectDetailPage({
 			setRatingMsg(txHash ? "Rating submitted on-chain!" : "Rating submitted!");
 
 			// Refresh off-chain ratings
-			const refresh = await fetch(`/api/projects/${slug}`);
-			const rd = await refresh.json();
-			setRatings(rd.ratings || []);
-			setAverages(rd.averages);
+			await fetchProjectAndRatings(reviewSort);
 
 			// Refresh on-chain aggregate
 			if (onChainActive) {
@@ -810,56 +857,12 @@ export default function ProjectDetailPage({
 													<span className="font-medium text-starlight text-sm">
 														{rating.username}
 													</span>
-													<p className="text-xs text-ash">
-														{new Date(rating.created_at).toLocaleDateString()}
-													</p>
 												</div>
 											</div>
-											<div className="flex items-center gap-1">
-												<svg
-													width="16"
-													height="16"
-													viewBox="0 0 24 24"
-													fill="var(--solar)"
-													stroke="none"
-												>
-													<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-												</svg>
-												<span className="font-semibold text-solar-bright">
-													{rating.score}
-												</span>
-											</div>
-										</div>
-										{rating.review_text && (
-											<p className="text-sm text-moonlight/80 leading-relaxed">
-												{rating.review_text}
-											</p>
-										)}
-										<div className="flex gap-4 mt-3 text-xs text-ash flex-wrap items-center">
-											{rating.purpose_score && (
-												<span>Purpose: {rating.purpose_score}/5</span>
-											)}
-											{rating.innovation_score && (
-												<span>Innovation: {rating.innovation_score}/5</span>
-											)}
-											{rating.usability_score && (
-												<span>Usability: {rating.usability_score}/5</span>
-											)}
-											{rating.tx_hash && (
-												<a
-													href={explorerTxUrl(rating.tx_hash)}
-													target="_blank"
-													rel="noopener noreferrer"
-													className="tag tag-plasma text-[10px] inline-flex items-center gap-1"
-													title={`On-chain tx: ${rating.tx_hash}`}
-												>
-													<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-														<path d="M12 2L2 7l10 5 10-5-10-5z" />
-														<path d="M2 17l10 5 10-5" />
-														<path d="M2 12l10 5 10-5" />
-													</svg>
-													On-chain
-												</a>
+											{rating.review_text && (
+												<p className="text-sm text-moonlight/80 leading-relaxed mb-3">
+													{rating.review_text}
+												</p>
 											)}
 											{user && user.id !== rating.user_id && (
 												reportedIds.includes(rating.id) ? (

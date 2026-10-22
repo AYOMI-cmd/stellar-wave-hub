@@ -1,20 +1,26 @@
-import { ratingsCol, usersCol } from "@/lib/db";
+import { ratingsCol, usersCol, ratingVotesCol } from "@/lib/db";
+import { getAuthUser } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   const { projectId } = await params;
+  const auth = getAuthUser(request);
+  const currentUserId = auth?.userId ?? null;
+
+  const url = new URL(request.url);
+  const sort = url.searchParams.get("sort") || "helpful";
 
   const snap = await ratingsCol.ref
     .where("project_id", "==", Number(projectId))
-    .orderBy("created_at", "desc")
     .get();
 
-  const ratings = await Promise.all(
+  let ratings = await Promise.all(
     snap.docs.map(async (d) => {
       const r = d.data();
+      const ratingId = Number(r.numericId ?? d.id);
       let username = "unknown";
       let avatar_url: string | null = null;
       if (r.user_id) {
@@ -27,6 +33,30 @@ export async function GET(
       return { ...r, id: r.numericId ?? d.id, username, avatar_url };
     })
   );
+
+  // Sorting
+  ratings = ratings.sort((a, b) => {
+    if (sort === "helpful") {
+      // Sort primarily by helpfulness count desc, secondary by created_at desc
+      const diff = (b.helpful_count || 0) - (a.helpful_count || 0);
+      if (diff !== 0) return diff;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    }
+    if (sort === "recent") {
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    }
+    if (sort === "highest") {
+      const diff = (b.score || 0) - (a.score || 0);
+      if (diff !== 0) return diff;
+      return (b.helpful_count || 0) - (a.helpful_count || 0);
+    }
+    if (sort === "lowest") {
+      const diff = (a.score || 0) - (b.score || 0);
+      if (diff !== 0) return diff;
+      return (b.helpful_count || 0) - (a.helpful_count || 0);
+    }
+    return 0;
+  });
 
   return Response.json({ ratings });
 }

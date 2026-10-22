@@ -7,6 +7,7 @@ const TABLE_BY_COLLECTION: Record<string, string> = {
 	users: "users",
 	projects: "projects",
 	ratings: "ratings",
+	rating_votes: "rating_votes",
 	financial_snapshots: "financial_snapshots",
 	auth_challenges: "auth_challenges",
 	counters: "counters",
@@ -22,7 +23,8 @@ function keyField(collection: string): string {
 	if (
 		collection === "users" ||
 		collection === "projects" ||
-		collection === "ratings"
+		collection === "ratings" ||
+		collection === "rating_votes"
 	) {
 		return "numericId";
 	}
@@ -35,7 +37,8 @@ function normalizeDocId(collection: string, id: string): string | number {
 	if (
 		collection === "users" ||
 		collection === "projects" ||
-		collection === "ratings"
+		collection === "ratings" ||
+		collection === "rating_votes"
 	) {
 		const numeric = Number(id);
 		return Number.isNaN(numeric) ? id : numeric;
