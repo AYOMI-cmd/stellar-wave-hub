@@ -11,6 +11,7 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
+  const canonical = new URL(`/projects/${slug}`, siteUrl).toString();
 
   try {
     const res = await fetch(`${apiBase}/api/projects/${slug}`, {
@@ -18,7 +19,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     });
 
     if (!res.ok) {
-      return { title: "Project Not Found" };
+      return {
+        title: "Project Not Found",
+        alternates: { canonical },
+      };
     }
 
     const { project } = await res.json();
@@ -31,7 +35,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title,
       description,
       alternates: {
-        canonical: `/projects/${slug}`,
+        canonical,
       },
       openGraph: {
         type: "article",
@@ -47,7 +51,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       },
     };
   } catch {
-    return { title: "Stellar Wave Hub" };
+    return {
+      title: "Stellar Wave Hub",
+      alternates: { canonical },
+    };
   }
 }
 
