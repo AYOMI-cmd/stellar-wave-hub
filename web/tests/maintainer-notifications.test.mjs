@@ -89,7 +89,7 @@ describe("Maintainer Submission Notifications", () => {
 
     // Notification must be called before response is returned
     const setCallIndex = content.indexOf("projectsCol.ref.doc(String(numericId)).set(project)");
-    const notifyCallIndex = content.indexOf("notifyMaintainersOfSubmission");
+    const notifyCallIndex = content.indexOf("notifyMaintainersOfSubmission(");
     const responseIndex = content.indexOf("return Response.json", setCallIndex);
 
     assert.ok(setCallIndex > 0, "Must find project persistence call");
