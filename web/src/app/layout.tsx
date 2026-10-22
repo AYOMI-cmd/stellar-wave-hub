@@ -67,13 +67,37 @@ export const metadata: Metadata = {
 	},
 };
 
+/**
+ * Blocking script that runs before paint to set the theme attribute on <html>.
+ * Prefers a persisted theme from localStorage, otherwise falls back to the
+ * system preference. This prevents a flash of the wrong theme on load.
+ */
+const themeInitScript = `
+(function() {
+  try {
+    var stored = localStorage.getItem('theme');
+    var theme = stored;
+    if (theme !== 'light' && theme !== 'dark') {
+      theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    }
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  } catch (e) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  }
+})();
+`;
+
 export default function RootLayout({
 	children,
 }: Readonly<{
 	children: React.ReactNode;
 }>) {
 	return (
-		<html lang="en" className="h-full antialiased">
+		<html lang="en" className="h-full antialiased" suppressHydrationWarning>
+			<head>
+				<script dangerouslySetInnerHTML={{__html: themeInitScript}} />
+			</head>
 			<body className="min-h-full flex flex-col font-display bg-cosmic noise">
 				<div className="starfield" />
 				<QueryProvider>

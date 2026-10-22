@@ -8,6 +8,7 @@ import {useState} from "react";
 import Avatar from "@/components/Avatar";
 import RoleBadge from "@/components/RoleBadge";
 import NotificationsMenu from "@/components/NotificationsMenu";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function Navbar() {
 	const {user, logout, loading} = useAuth();
@@ -88,6 +89,7 @@ export default function Navbar() {
 
 					{/* Auth section */}
 					<div className="hidden md:flex items-center gap-3">
+						<ThemeToggle />
 						{loading ? (
 							<div className="w-20 h-8 skeleton" />
 						) : user ? (
@@ -131,6 +133,7 @@ export default function Navbar() {
 					</div>
 
 					{/* Mobile hamburger */}
+					<ThemeToggle className="md:hidden" />
 					<button
 						className="md:hidden p-2 rounded-lg hover:bg-stardust/50 transition-colors"
 						onClick={() => setMobileOpen(!mobileOpen)}
