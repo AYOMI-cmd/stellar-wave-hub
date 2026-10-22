@@ -8,6 +8,16 @@ import VerifiedOnChainBadge from "@/components/VerifiedOnChainBadge";
 import EmbedSnippet from "@/components/EmbedSnippet";
 import Avatar from "@/components/Avatar";
 import VerifiedBadge from "@/components/VerifiedBadge";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import Link from "next/link";
 import {apiFetch, isApiFetchError} from "@/lib/api-fetch";
 import {useRetryCountdown} from "@/lib/use-retry-countdown";
@@ -310,23 +320,6 @@ const REVIEW_SORT_OPTIONS: {value: ReviewSort; label: string}[] = [
 ];
 
 export default function ProjectDetailPage({
-  const [ratingFee, setRatingFee] = useState<string | null>(null);
-  const [showFeeConfirm, setShowFeeConfirm] = useState<boolean>(false);
-
-  useEffect(() => {
-    async function fetchFee() {
-      try {
-        if (typeof getRatingFee === "function") {
-          const fee = await getRatingFee();
-          setRatingFee(fee.toString());
-        }
-      } catch (e) {
-        console.error("Error fetching rating fee:", e);
-      }
-    }
-    fetchFee();
-  }, []);
-
 	params,
 }: {
 	params: Promise<{slug: string}>;
@@ -359,6 +352,8 @@ export default function ProjectDetailPage({
 		review_text: "",
 	});
 	const [submitting, setSubmitting] = useState(false);
+	// On-chain ratings cost a fee: confirm it before the wallet is asked to sign (#493).
+	const [showFeeConfirm, setShowFeeConfirm] = useState(false);
 	const [ratingMsg, setRatingMsg] = useState("");
 	const {
 		remainingSeconds,
@@ -543,8 +538,17 @@ export default function ProjectDetailPage({
 		setReportBusy(false);
 	};
 
-	const submitRating = async (e: React.FormEvent<HTMLFormElement>) => {
+	const submitRating = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
+		if (!project || !token || ratingForm.score === 0) return;
+		if (onChainActive) {
+			setShowFeeConfirm(true);
+			return;
+		}
+		void performRating();
+	};
+
+	const performRating = async () => {
 		if (!project || !token || ratingForm.score === 0) return;
 		setSubmitting(true);
 		setRatingMsg("");
@@ -1404,6 +1408,27 @@ export default function ProjectDetailPage({
 								</button>
 							</form>
 						)}
+						<AlertDialog open={showFeeConfirm} onOpenChange={setShowFeeConfirm}>
+							<AlertDialogContent>
+								<AlertDialogHeader>
+									<AlertDialogTitle>Confirm on-chain rating</AlertDialogTitle>
+									<AlertDialogDescription>
+										This on-chain rating costs {feeLabel} (+ network fee). Your wallet will ask you to sign the transaction next.
+									</AlertDialogDescription>
+								</AlertDialogHeader>
+								<AlertDialogFooter>
+									<AlertDialogCancel>Cancel</AlertDialogCancel>
+									<AlertDialogAction
+										onClick={() => {
+											setShowFeeConfirm(false);
+											void performRating();
+										}}
+									>
+										Pay {feeLabel} and rate
+									</AlertDialogAction>
+								</AlertDialogFooter>
+							</AlertDialogContent>
+						</AlertDialog>
 
 						{/* Existing ratings */}
 						{ratings.length > 1 && (
