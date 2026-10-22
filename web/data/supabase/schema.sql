@@ -151,13 +151,47 @@ create table if not exists public.promo_codes (
 
 create unique index if not exists promo_codes_code_key on public.promo_codes (upper(code));
 
+create table if not exists public.reports (
+  id bigserial primary key,
+  "numericId" bigint unique,
+  reporter_id bigint not null,
+  target_type text not null check (target_type in ('project', 'rating')),
+  target_id bigint not null,
+  reason text not null,
+  note text,
+  details text,
+  status text not null default 'open'
+    check (status in ('open', 'resolved', 'dismissed')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  resolved_at timestamptz,
+  resolved_by bigint,
+  constraint reports_reporter_id_fkey
+    foreign key (reporter_id)
+    references public.users ("numericId")
+    on delete cascade,
+  constraint reports_resolved_by_fkey
+    foreign key (resolved_by)
+    references public.users ("numericId")
+    on delete set null
+);
+
+create unique index if not exists reports_unique_open_user_target_idx
+  on public.reports (target_type, target_id, reporter_id)
+  where status = 'open';
+create index if not exists reports_status_created_at_idx
+  on public.reports (status, created_at desc);
+create index if not exists reports_target_idx
+  on public.reports (target_type, target_id);
+
 -- Seed counters used by nextId()
 insert into public.counters (name, value)
 values
   ('users', 0),
   ('projects', 0),
   ('ratings', 0),
-  ('rating_votes', 0)
+  ('rating_votes', 0),
+  ('reports', 0)
 on conflict (name) do nothing;
 
 create table if not exists public.rating_votes (
@@ -179,6 +213,8 @@ create unique index if not exists rating_votes_rating_user_unique_idx on public.
 create index if not exists rating_votes_rating_id_idx on public.rating_votes (rating_id);
 create index if not exists rating_votes_user_id_idx on public.rating_votes (user_id);
 create index if not exists rating_votes_created_at_idx on public.rating_votes (created_at desc);
+
+alter table public.reports enable row level security;
 
 commit;
 

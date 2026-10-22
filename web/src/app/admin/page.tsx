@@ -183,6 +183,172 @@ interface PromoCode {
   created_at: string;
 }
 
+interface AdminReport {
+  id: number;
+  reporter_username: string;
+  target_type: "project" | "rating";
+  target_name: string;
+  target_excerpt: string;
+  target_url: string | null;
+  reason: string;
+  details: string | null;
+  status: "open" | "resolved" | "dismissed";
+  created_at: string;
+}
+
+type ReportFilter = "open" | "resolved" | "dismissed" | "all";
+
+function ReportsTab({ token }: { token: string | null }) {
+  const queryClient = useQueryClient();
+  const [status, setStatus] = useState<ReportFilter>("open");
+  const { data: reports = [], isLoading, isError, error } = useQuery<AdminReport[]>({
+    queryKey: ["admin-reports", status],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/reports?status=${status}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to fetch reports");
+      return data.reports || [];
+    },
+    enabled: !!token,
+  });
+  const updateReport = useMutation({
+    mutationFn: async ({ id, nextStatus }: { id: number; nextStatus: "resolved" | "dismissed" }) => {
+      const res = await fetch("/api/admin/reports", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id, status: nextStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update report");
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-reports"] }),
+  });
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-starlight">Reports inbox</h2>
+          <p className="text-sm text-ash">Review reports about projects and reviews.</p>
+        </div>
+        <select
+          aria-label="Filter reports by status"
+          value={status}
+          onChange={(event) => setStatus(event.target.value as ReportFilter)}
+          className="input-field w-auto min-w-40"
+        >
+          <option value="open">Open reports</option>
+          <option value="resolved">Resolved</option>
+          <option value="dismissed">Dismissed</option>
+          <option value="all">All reports</option>
+        </select>
+      </div>
+
+      {updateReport.isError && (
+        <div role="alert" className="bg-supernova/10 border border-supernova/20 text-supernova rounded-xl px-4 py-3 text-sm">
+          {updateReport.error.message}
+        </div>
+      )}
+      {isError && (
+        <div role="alert" className="bg-supernova/10 border border-supernova/20 text-supernova rounded-xl px-4 py-3 text-sm">
+          {error.message}
+        </div>
+      )}
+      {isLoading ? (
+        <Skeletons count={3} />
+      ) : isError ? null : reports.length > 0 ? (
+        <div className="space-y-3">
+          {reports.map((report) => (
+            <article key={report.id} className="glass rounded-2xl p-5 sm:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0 flex-1 space-y-3">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="rounded-md bg-supernova/10 px-2 py-1 font-medium uppercase tracking-wide text-supernova">
+                      {report.target_type}
+                    </span>
+                    <span className="text-ash">Reported by {report.reporter_username}</span>
+                    <span className="text-ash">·</span>
+                    <time className="text-ash" dateTime={report.created_at}>
+                      {new Date(report.created_at).toLocaleString()}
+                    </time>
+                    {report.status !== "open" && (
+                      <span className="rounded-md bg-white/5 px-2 py-1 capitalize text-ash">
+                        {report.status}
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-starlight">{report.reason}</h3>
+                    {report.details && (
+                      <p className="mt-1 whitespace-pre-wrap text-sm text-moonlight/75">
+                        {report.details}
+                      </p>
+                    )}
+                  </div>
+                  <div className="rounded-xl border border-dust/30 bg-stardust/30 px-4 py-3">
+                    <p className="mb-1 text-xs uppercase tracking-wider text-ash">Reported target</p>
+                    {report.target_url ? (
+                      <Link
+                        href={report.target_url}
+                        className="font-medium text-plasma-bright underline underline-offset-2"
+                      >
+                        {report.target_name}
+                      </Link>
+                    ) : (
+                      <p className="font-medium text-ash">{report.target_name}</p>
+                    )}
+                    {report.target_excerpt && (
+                      <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm text-moonlight/70">
+                        {report.target_excerpt}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {report.status === "open" && (
+                  <div className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      disabled={updateReport.isPending}
+                      onClick={() => updateReport.mutate({ id: report.id, nextStatus: "resolved" })}
+                      className="rounded-lg border border-aurora/25 bg-aurora/10 px-3 py-2 text-xs font-medium text-aurora-bright transition-colors hover:bg-aurora/20 disabled:opacity-50"
+                    >
+                      Resolve
+                    </button>
+                    <button
+                      type="button"
+                      disabled={updateReport.isPending}
+                      onClick={() => updateReport.mutate({ id: report.id, nextStatus: "dismissed" })}
+                      className="rounded-lg border border-dust/40 bg-white/5 px-3 py-2 text-xs font-medium text-moonlight transition-colors hover:bg-white/10 disabled:opacity-50"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          icon={
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--aurora)" strokeWidth="1.5">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              <path d="m9 12 2 2 4-4" />
+            </svg>
+          }
+          title={status === "open" ? "Inbox clear" : "No reports found"}
+          subtitle={status === "open" ? "There are no open reports to review" : "No reports match this status"}
+        />
+      )}
+    </div>
+  );
+}
+
 function useAdminPromoCodes(token: string | null) {
   return useQuery<PromoCode[]>({
     queryKey: ["admin-promo-codes"],
@@ -2121,6 +2287,7 @@ export default function AdminPage() {
             <TabsTrigger value="promos">Promo Codes</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="moderators">Moderators</TabsTrigger>
+            <TabsTrigger value="reports">Reports</TabsTrigger>
           </TabsList>
 
           {/* ── Pending tab ── */}
@@ -2348,6 +2515,10 @@ export default function AdminPage() {
 
           <TabsContent value="moderators">
             <ModeratorsTab token={token} />
+          </TabsContent>
+
+          <TabsContent value="reports">
+            <ReportsTab token={token} />
           </TabsContent>
         </Tabs>
       </div>

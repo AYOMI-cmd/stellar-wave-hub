@@ -492,6 +492,20 @@ export default function ProjectDetailPage({
 	}, [project?.id, reloadKey]);
 
 	useEffect(() => {
+		if (/^#rating-\d+$/.test(window.location.hash)) {
+			setActiveTab("ratings");
+		}
+	}, [slug]);
+
+	useEffect(() => {
+		if (activeTab !== "ratings" || !ratings.length) return;
+		const ratingId = window.location.hash.match(/^#rating-\d+$/)?.[0].slice(1);
+		if (ratingId) {
+			document.getElementById(ratingId)?.scrollIntoView({ behavior: "smooth" });
+		}
+	}, [activeTab, ratings]);
+
+	useEffect(() => {
 		if (project?.stellar_account_id) {
 			fetch(`/api/financials/${project.id}/summary`)
 				.then((r) => r.json())
@@ -1596,6 +1610,7 @@ export default function ProjectDetailPage({
 								{ratings.map((rating) => (
 									<div
 										key={rating.id}
+										id={`rating-${rating.id}`}
 										className="glass rounded-2xl p-6"
 									>
 										<div className="flex items-center justify-between mb-3">
