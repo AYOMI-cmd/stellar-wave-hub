@@ -121,7 +121,8 @@ async function listProjects(rows, search = "sort=new-this-week&limit=6") {
 }
 
 function renderHome(newProjects, loading = false) {
-  const states = [[], [], newProjects, loading];
+  // Positional useState mocks: featured, trending, trendingFallback, newThisWeek, loading.
+  const states = [[], [], false, newProjects, loading];
   const effects = [];
   const requests = [];
   let stateIndex = 0;
