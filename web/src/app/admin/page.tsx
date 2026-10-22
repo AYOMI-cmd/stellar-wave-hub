@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { hasMinRole } from "@/lib/roles";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import UsersPanel from "@/components/admin/UsersPanel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   ON_CHAIN_ENABLED,
@@ -1837,6 +1838,8 @@ export default function AdminPage() {
         </div>
         <p className="text-ash ml-[52px]">Manage project submissions, approvals, and listings</p>
       </div>
+
+      {token && <UsersPanel token={token} actorId={user.id} />}
 
       {/* Search */}
       <div className="mb-6 animate-in animate-in-delay-1">
