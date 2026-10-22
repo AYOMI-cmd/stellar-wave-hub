@@ -3,6 +3,7 @@ import {getAuthUser} from "@/lib/auth";
 import {parseJsonBody} from "@/lib/validation/parse-body";
 import {createProjectSchema} from "@/lib/validation/schemas/projects";
 import {publicProjectCacheHeaders} from "@/lib/public-project-cache";
+import {notifyMaintainersOfSubmission} from "@/lib/notifications";
 import slugify from "slugify";
 import {getSupabase} from "@/lib/firebase";
 import {checkRateLimit, getClientIp, rateLimitExceededResponse} from "@/lib/rate-limit";
@@ -241,6 +242,18 @@ export async function POST(request: Request) {
 		};
 
 		await projectsCol.ref.doc(String(numericId)).set(project);
+
+		// Notify maintainers of the new submission (fire-and-forget)
+		// Notification failure must not block the submission response
+		notifyMaintainersOfSubmission({
+			numericId,
+			name,
+			category,
+			user_id: auth.userId,
+		}).catch((err) =>
+			console.error("Failed to send maintainer notifications:", err)
+		);
+
 		return Response.json(
 			{project: {...project, id: numericId}},
 			{status: 201},
