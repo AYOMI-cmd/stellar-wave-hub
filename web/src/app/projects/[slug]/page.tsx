@@ -276,6 +276,16 @@ function renderReviewMarkdown(markdown: string): ReactNode {
 	return <div className="space-y-2">{blocks}</div>;
 }
 
+/** Count ratings per whole star (5..1); always returns all five keys. */
+function countStarDistribution(ratings: {score: number}[]): Record<number, number> {
+	const counts: Record<number, number> = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0};
+	for (const r of ratings) {
+		const stars = Math.round(Number(r.score));
+		if (stars >= 1 && stars <= 5) counts[stars]++;
+	}
+	return counts;
+}
+
 type ReviewSort = "helpful" | "recent" | "highest" | "lowest";
 
 const REVIEW_SORT_OPTIONS: {value: ReviewSort; label: string}[] = [
@@ -346,6 +356,9 @@ export default function ProjectDetailPage({
 	// Bumped to refetch the project + ratings (e.g. after submitting a rating).
 	const [reloadKey, setReloadKey] = useState(0);
 
+	// 5 -> 1 star breakdown (#521)
+	const [distribution, setDistribution] = useState<Record<number, number>>(countStarDistribution([]));
+
 	useEffect(() => {
 		let cancelled = false;
 		// Signed-in requests get has_voted per review.
@@ -408,6 +421,20 @@ export default function ProjectDetailPage({
 			setVotingRatingId(null);
 		}
 	};
+
+	useEffect(() => {
+		if (!project?.id) return;
+		let cancelled = false;
+		fetch(`/api/ratings/project/${project.id}`)
+			.then((r) => (r.ok ? r.json() : null))
+			.then((data) => {
+				if (data && !cancelled) setDistribution(countStarDistribution(data.ratings || []));
+			})
+			.catch(() => {});
+		return () => {
+			cancelled = true;
+		};
+	}, [project?.id, reloadKey]);
 
 	useEffect(() => {
 		if (project?.stellar_account_id) {
@@ -1055,6 +1082,87 @@ export default function ProjectDetailPage({
 
 				{activeTab === "ratings" && (
 					<div className="space-y-8">
+						{/* Rating distribution histogram (5 -> 1 star) */}
+						{ratings.length > 0 && (() => {
+							const totalDistributionCount = Object.values(distribution).reduce((acc, c) => acc + c, 0);
+							return (
+								<div className="glass rounded-2xl p-8">
+									<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+										<div>
+											<h2 className="font-semibold text-lg text-starlight">
+												Rating Distribution
+											</h2>
+											<p className="text-xs text-ash mt-1">
+												Breakdown of user ratings across all star levels
+											</p>
+										</div>
+										{averages && (
+											<div className="flex items-center gap-2">
+												<svg
+													width="18"
+													height="18"
+													viewBox="0 0 24 24"
+													fill="var(--solar)"
+													stroke="none"
+												>
+													<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+												</svg>
+												<span className="font-bold text-lg text-solar-bright">
+													{Number(averages.avg_score || 0).toFixed(1)}
+												</span>
+												<span className="text-xs text-ash">
+													({totalDistributionCount} rating{totalDistributionCount !== 1 ? "s" : ""})
+												</span>
+											</div>
+										)}
+									</div>
+
+									<div className="space-y-3" role="region" aria-label="Rating distribution histogram">
+										{[5, 4, 3, 2, 1].map((stars) => {
+											const count = distribution[stars] || 0;
+											const percentage = totalDistributionCount > 0 ? (count / totalDistributionCount) * 100 : 0;
+											return (
+												<div key={stars} className="flex items-center gap-3 text-sm">
+													<div className="flex items-center gap-1 w-16 shrink-0 justify-end">
+														<span className="font-medium text-starlight text-xs">{stars}</span>
+														<svg
+															width="12"
+															height="12"
+															viewBox="0 0 24 24"
+															fill="var(--solar)"
+															stroke="none"
+														>
+															<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+														</svg>
+													</div>
+
+													<div className="flex-1 h-3 bg-stardust/60 rounded-full overflow-hidden p-0.5">
+														<div
+															role="progressbar"
+															aria-label={`${stars} star ratings: ${count} of ${totalDistributionCount} (${Math.round(percentage)}%)`}
+															aria-valuenow={count}
+															aria-valuemin={0}
+															aria-valuemax={totalDistributionCount}
+															className="h-full bg-gradient-to-r from-solar to-solar-bright rounded-full transition-all duration-500"
+															style={{ width: `${percentage}%` }}
+														/>
+													</div>
+
+													<div className="w-16 shrink-0 text-right">
+														<span className="text-xs text-moonlight font-mono font-medium">
+															{count}
+														</span>
+														<span className="text-[10px] text-ash ml-1 font-mono">
+															({Math.round(percentage)}%)
+														</span>
+													</div>
+												</div>
+											);
+										})}
+									</div>
+								</div>
+							);
+						})()}
 						{/* Already rated on-chain notice */}
 						{onChainActive && alreadyRatedOnChain && user && user.id !== project.user_id && (
 							<div className="glass rounded-2xl p-6 flex items-center gap-3">
