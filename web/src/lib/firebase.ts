@@ -176,6 +176,10 @@ class QuerySnapshot {
 	get empty(): boolean {
 		return this.docs.length === 0;
 	}
+
+	get size(): number {
+		return this.docs.length;
+	}
 }
 
 class QueryRef {
