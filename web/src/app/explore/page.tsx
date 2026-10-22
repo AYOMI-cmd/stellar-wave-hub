@@ -86,45 +86,32 @@ function ExplorePageContent() {
 		total: 0,
 		pages: 0,
 	});
-	const [category, setCategory] = useState("");
-	const [search, setSearch] = useState("");
-	const [sort, setSort] = useState("");
-	const [substantialOnly, setSubstantialOnly] = useState(false);
-	const [page, setPage] = useState(1);
 	const [loading, setLoading] = useState(true);
 	const [httpPage, setHttpPage] = useState(1);
 
-	// Sync state from the URL whenever the query string changes (initial load,
-	// back/forward navigation, or external link).
-	useEffect(() => {
-		const params = new URLSearchParams(queryString);
-		setCategory(normalizeCategory(params.get("category")));
-		setSearch(params.get("search") ?? "");
-		setSort(normalizeSort(params.get("sort")));
-		setSubstantialOnly(params.get("substantial") === "true");
-		setPage(normalizePage(params.get("page")));
-	}, [queryString]);
+	// The URL is the single source of truth for the view, so reloads, shared
+	// links and back/forward all restore the same filters.
+	const category = normalizeCategory(searchParams.get("category"));
+	const search = searchParams.get("search") ?? "";
+	const sort = normalizeSort(searchParams.get("sort"));
+	const substantialOnly = searchParams.get("substantial") === "true";
+	const page = normalizePage(searchParams.get("page"));
 
-	// Mirror the current filter state into the URL (shallow) whenever it changes.
-	useEffect(() => {
-		if (!category || !sort) return; // wait until URL sync has hydrated state
-		const params = new URLSearchParams();
-		if (category !== "All") params.set("category", category.toLowerCase());
-		if (search) params.set("search", search);
-		if (sort !== DEFAULT_SORT) params.set("sort", sort);
-		if (substantialOnly) params.set("substantial", "true");
-		if (page > 1) params.set("page", String(page));
-
-		const nextQuery = params.toString();
-		if (nextQuery === queryString) return;
-
-		router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, {
-			scroll: false,
-		});
-	}, [queryString, category, search, sort, substantialOnly, page, pathname, router]);
+	const updateParams = useCallback(
+		(changes: Record<string, string | null>, resetPage = true) => {
+			const params = new URLSearchParams(queryString);
+			for (const [key, value] of Object.entries(changes)) {
+				if (value === null || value === "") params.delete(key);
+				else params.set(key, value);
+			}
+			if (resetPage) params.delete("page");
+			const next = params.toString();
+			router.replace(next ? `${pathname}?${next}` : pathname, {scroll: false});
+		},
+		[queryString, pathname, router],
+	);
 
 	const fetchProjects = useCallback(async () => {
-		if (!category || !sort) return; // wait for URL hydration
 		setLoading(true);
 		const params = new URLSearchParams();
 		if (category !== "All") params.set("category", category.toLowerCase());
@@ -152,25 +139,15 @@ function ExplorePageContent() {
 		fetchProjects();
 	}, [fetchProjects]);
 
-	const toggleSubstantial = () => {
-		setSubstantialOnly((next) => !next);
-		setPage(1);
-	};
-	const handleCategoryChange = (cat: string) => {
-		setCategory(cat);
-		setPage(1);
-	};
-	const handleSearchChange = (value: string) => {
-		setSearch(value);
-		setPage(1);
-	};
-	const handleSortChange = (value: string) => {
-		setSort(value);
-		setPage(1);
-	};
-	const handlePageChange = (nextPage: number) => {
-		setPage(nextPage);
-	};
+	const toggleSubstantial = () =>
+		updateParams({substantial: substantialOnly ? null : "true"});
+	const handleCategoryChange = (cat: string) =>
+		updateParams({category: cat === "All" ? null : cat.toLowerCase()});
+	const handleSearchChange = (value: string) => updateParams({search: value});
+	const handleSortChange = (value: string) =>
+		updateParams({sort: value === DEFAULT_SORT ? null : value});
+	const handlePageChange = (nextPage: number) =>
+		updateParams({page: nextPage > 1 ? String(nextPage) : null}, false);
 
 	return (
 		<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -216,7 +193,7 @@ function ExplorePageContent() {
 					onChange={(e) => handleSortChange(e.target.value)}
 					className="input-field !w-auto !pr-10 appearance-none cursor-pointer"
 					style={{
-						backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237c7893' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d'm16 9 6 6 6-6'/%3E%3C/svg%3E")`,
+						backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237c7893' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
 						backgroundRepeat: "no-repeat",
 						backgroundPosition: "right 12px center",
 					}}
