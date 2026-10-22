@@ -37,6 +37,7 @@ import {
 	type OnChainRating,
 } from "@/lib/ratingContract";
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://stellarwavehub.com";
 interface Project {
 	id: number;
 	name: string;
@@ -362,6 +363,7 @@ export default function ProjectDetailPage({
 	} = useRetryCountdown();
 	const [ratingStep, setRatingStep] = useState<"idle" | "onchain" | "saving">("idle");
 	const [lastTxHash, setLastTxHash] = useState<string | null>(null);
+	const [badgeCopied, setBadgeCopied] = useState(false);
 
 	// Report review state
 	const [reportingId, setReportingId] = useState<number | null>(null);
@@ -748,6 +750,17 @@ export default function ProjectDetailPage({
 		return result;
 	})();
 
+	const badgeSnippet = `[![Stellar Wave Hub](${siteUrl}/api/badge/${project.slug}.svg)](${siteUrl}/projects/${project.slug})`;
+	const copyBadge = async () => {
+		try {
+			await navigator.clipboard.writeText(badgeSnippet);
+			setBadgeCopied(true);
+			setTimeout(() => setBadgeCopied(false), 2000);
+		} catch {
+			setBadgeCopied(false);
+		}
+	};
+
 	return (
 		<div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 			{/* Header */}
@@ -1118,6 +1131,32 @@ export default function ProjectDetailPage({
 							</div>
 						)}
 
+						<div className="glass rounded-2xl p-8">
+							<h2 className="font-semibold text-lg text-starlight mb-2">
+								README badge
+							</h2>
+							<p className="text-sm text-ash mb-4">
+								Add this to your README. The badge shows your current rating and links back here.
+							</p>
+							{/* eslint-disable-next-line @next/next/no-img-element */}
+							<img
+								src={`/api/badge/${project.slug}.svg`}
+								alt="Stellar Wave Hub rating badge"
+								height={20}
+								className="mb-4"
+							/>
+							<code className="block bg-stardust/30 rounded-xl px-4 py-3 text-xs font-mono text-moonlight break-all">
+								{badgeSnippet}
+							</code>
+							<button
+								type="button"
+								onClick={copyBadge}
+								className="btn-ghost text-sm !py-1.5 mt-3"
+							>
+								{badgeCopied ? "Copied!" : "Copy markdown"}
+							</button>
+						</div>
+						
 						{/* On-chain rating aggregate */}
 						{onChainActive && onChainRating && onChainRating.count > 0 && (
 							<div className="glass rounded-2xl p-8">
