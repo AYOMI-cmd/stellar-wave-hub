@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { usersCol, projectsCol, ratingsCol } from "@/lib/db";
 import Link from "next/link";
-import StarRating from "@/components/StarRating"; // Or just render stars manually if it's client-only
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +9,13 @@ export default async function UserProfilePage({
 }: {
 	params: Promise<{ username: string }>;
 }) {
-	const { username } = await params;
+	const { username: rawUsername } = await params;
+	let username = rawUsername;
+	try {
+		username = decodeURIComponent(rawUsername);
+	} catch {
+		notFound();
+	}
 
 	// Lookup user by username
 	const userSnap = await usersCol.ref
@@ -37,7 +42,11 @@ export default async function UserProfilePage({
 		.where("user_id", "==", userId)
 		.orderBy("created_at", "desc")
 		.get();
-	const ratings = await Promise.all(ratingsSnap.docs.map(async (d) => {
+	// Sorted in memory to avoid requiring a composite Firestore index.
+	const ratingDocs = [...ratingsSnap.docs].sort((a, b) =>
+		String(b.data().created_at ?? "").localeCompare(String(a.data().created_at ?? "")),
+	);
+	const ratings = await Promise.all(ratingDocs.map(async (d) => {
 		const r = d.data();
 		// We need project details for the rating
 		const pDoc = await projectsCol.ref.doc(String(r.project_id)).get();
@@ -56,7 +65,7 @@ export default async function UserProfilePage({
 			<div className="mb-8 animate-in">
 				<div className="flex items-center gap-4 mb-4">
 					<div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-nova to-plasma flex items-center justify-center text-2xl font-bold text-white shadow-lg shadow-nova/20 shrink-0">
-						{user.username[0].toUpperCase()}
+						{String(user.username || username)[0].toUpperCase()}
 					</div>
 					<div>
 						<h1 className="font-display font-bold text-3xl text-starlight">
