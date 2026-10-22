@@ -6,9 +6,9 @@ import { createRequire } from "node:module";
 const req = createRequire(new URL("../package.json", import.meta.url));
 const base = new URL("../src/", import.meta.url);
 function load(file, mocks) {
-  const exports = {};const module = { exports };
+  const exports = {};const mod = { exports };
   const js=ts.transpileModule(readFileSync(new URL(file,base),"utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
-  vm.runInNewContext(js,{exports,module,require:(id)=>id in mocks?mocks[id]:req(id),Response,Request,URL,console});return module.exports;
+  vm.runInNewContext(js,{exports,module:mod,require:(id)=>id in mocks?mocks[id]:req(id),Response,Request,URL,console});return mod.exports;
 }
 const schemas=load("lib/validation/schemas/admin-users.ts",{});
 let actor={userId:1,role:'admin'},actorRow={role:'admin'},rpcCalls=[];

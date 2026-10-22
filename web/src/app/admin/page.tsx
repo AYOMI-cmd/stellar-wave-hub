@@ -5,7 +5,6 @@ import { useAuth } from "@/context/AuthContext";
 import { hasMinRole } from "@/lib/roles";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import UsersPanel from "@/components/admin/UsersPanel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   ON_CHAIN_ENABLED,
@@ -359,9 +358,7 @@ interface AdminUser {
 
 interface AdminUsersResponse {
   users: AdminUser[];
-  total: number;
-  page: number;
-  pageSize: number;
+  pagination: { page: number; limit: number; total: number; pages: number };
 }
 
 const MANAGED_ROLES = ["contributor", "maintainer", "admin"] as const;
@@ -453,12 +450,9 @@ function UsersTab({
   const usersQuery = useQuery<AdminUsersResponse>({
     queryKey: ["admin-users", search, roleFilter, page],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        search,
-        role: roleFilter,
-        page: String(page),
-      });
-      const response = await fetch(`/api/users/list?${params}`, {
+      const params = new URLSearchParams({ search, page: String(page) });
+      if (roleFilter !== "all") params.set("role", roleFilter);
+      const response = await fetch(`/api/admin/users?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
@@ -470,13 +464,13 @@ function UsersTab({
 
   const updateRole = useMutation({
     mutationFn: async ({ userId, role }: { userId: number; role: string }) => {
-      const response = await fetch("/api/users/list", {
-        method: "PATCH",
+      const response = await fetch(`/api/admin/users/${userId}/role`, {
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ userId, role }),
+        body: JSON.stringify({ role }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Failed to update role");
@@ -491,13 +485,9 @@ function UsersTab({
   });
 
   const users = usersQuery.data?.users ?? [];
-  const total = usersQuery.data?.total ?? 0;
-  const pageSize = usersQuery.data?.pageSize ?? 20;
+  const total = usersQuery.data?.pagination.total ?? 0;
+  const pageSize = usersQuery.data?.pagination.limit ?? 25;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
-
-  useEffect(() => {
-    if (page > pageCount) setPage(pageCount);
-  }, [page, pageCount]);
 
   return (
     <section className="space-y-5">
@@ -1838,8 +1828,6 @@ export default function AdminPage() {
         </div>
         <p className="text-ash ml-[52px]">Manage project submissions, approvals, and listings</p>
       </div>
-
-      {token && <UsersPanel token={token} actorId={user.id} />}
 
       {/* Search */}
       <div className="mb-6 animate-in animate-in-delay-1">
