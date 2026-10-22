@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect, useState, useCallback, Suspense} from "react";
+import {useEffect, useMemo, useState, useCallback, Suspense} from "react";
 import {useRouter, useSearchParams, usePathname} from "next/navigation";
 import ProjectCard from "@/components/ProjectCard";
 
@@ -50,6 +50,8 @@ function normalizePage(value: string | null): number {
 	if (!Number.isFinite(parsed) || parsed < 1) return 1;
 	return parsed;
 }
+/** Position (0-based) at which the sponsored card is inserted. */
+const SPONSORED_SLOT = 3;
 
 interface Project {
 	id: number;
@@ -63,8 +65,13 @@ interface Project {
 	avg_rating?: number;
 	rating_count?: number;
 	username?: string;
+	logo_url?: string;
 	is_substantial?: boolean;
 	stellar_contract_id?: string;
+	rating_velocity?: number;
+	created_at?: string;
+	/** Internal flag – not from API */
+	_isSponsored?: boolean;
 }
 
 interface Pagination {
@@ -72,6 +79,17 @@ interface Pagination {
 	limit: number;
 	total: number;
 	pages: number;
+}
+
+/**
+ * Returns true when the user's search string is an exact (case-insensitive)
+ * match of an organic project name already on the page.  In that case we
+ * suppress the sponsored slot per the acceptance criteria.
+ */
+function isExactNameSearch(search: string, projects: Project[]): boolean {
+	if (!search.trim()) return false;
+	const needle = search.trim().toLowerCase();
+	return projects.some((p) => p.name.trim().toLowerCase() === needle);
 }
 
 function ExplorePageContent() {
@@ -112,6 +130,9 @@ function ExplorePageContent() {
 		[queryString, pathname, router],
 	);
 
+	// ------------------------------------------------------------------ //
+	// Fetch organic results                                                //
+	// ------------------------------------------------------------------ //
 	const fetchProjects = useCallback(async () => {
 		setLoading(true);
 		const params = new URLSearchParams();
@@ -149,6 +170,40 @@ function ExplorePageContent() {
 		updateParams({sort: value === DEFAULT_SORT ? null : value});
 	const handlePageChange = (nextPage: number) =>
 		updateParams({page: nextPage > 1 ? String(nextPage) : null}, false);
+	// Sponsored slot (#462): one active spotlight not already on the page,
+	// matching the category filter, inserted at SPONSORED_SLOT.
+	const [sponsored, setSponsored] = useState<Project | null>(null);
+
+	useEffect(() => {
+		if (loading) return;
+		let cancelled = false;
+		const spotlightParams = new URLSearchParams();
+		if (category !== "All") spotlightParams.set("category", category.toLowerCase());
+		const organicIds = projects.map((p) => p.id).join(",");
+		if (organicIds) spotlightParams.set("exclude", organicIds);
+
+		fetch(`/api/spotlights?${spotlightParams}`)
+			.then((r) => (r.ok ? r.json() : {spotlights: []}))
+			.then((data) => {
+				if (cancelled) return;
+				const first: Project | undefined = data.spotlights?.[0];
+				setSponsored(first ? {...first, _isSponsored: true} : null);
+			})
+			.catch(() => {
+				if (!cancelled) setSponsored(null);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [loading, projects, category]);
+
+	const displayProjects = useMemo(() => {
+		// Never show a sponsored card when the user searched a project by exact name.
+		if (!sponsored || isExactNameSearch(search, projects)) return projects;
+		const insertAt = Math.min(SPONSORED_SLOT, projects.length);
+		return [...projects.slice(0, insertAt), sponsored, ...projects.slice(insertAt)];
+	}, [projects, sponsored, search]);
+
 
 	return (
 		<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -257,16 +312,38 @@ function ExplorePageContent() {
 						<div key={i} className="skeleton h-56 rounded-2xl" />
 					))}
 				</div>
-			) : projects.length > 0 ? (
+			) : displayProjects.length > 0 ? (
 				<>
 					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-						{projects.map((project, i) => (
-							<ProjectCard
-								key={project.id}
-								project={project}
-								index={i}
-							/>
-						))}
+						{displayProjects.map((project, i) =>
+							project._isSponsored ? (
+								<div key={`sponsored-${project.id}`} className="relative">
+									{/* Subtle outer glow to visually distinguish the sponsored card */}
+									<div
+										className="absolute inset-0 rounded-2xl pointer-events-none"
+										style={{
+											boxShadow:
+												"0 0 0 1px rgba(var(--solar-rgb,251,191,36),0.25)",
+										}}
+										aria-hidden="true"
+									/>
+									<ProjectCard
+										project={project}
+										index={i}
+										badge={{
+											label: "Sponsored",
+											variant: "solar",
+										}}
+									/>
+								</div>
+							) : (
+								<ProjectCard
+									key={project.id}
+									project={project}
+									index={i}
+								/>
+							),
+						)}
 					</div>
 
 					{/* Pagination */}
