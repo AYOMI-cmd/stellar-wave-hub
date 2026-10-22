@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import VerifiedBadge from "./VerifiedBadge";
 
 interface ProjectCardProps {
   project: {
@@ -20,6 +21,8 @@ interface ProjectCardProps {
     stellar_contract_id?: string;
     rating_velocity?: number;
     created_at?: string;
+    owner_verified_at?: string | null;
+    stellar_account_id?: string | null;
   };
   index?: number;
   badge?: {
@@ -122,8 +125,12 @@ export default function ProjectCard({ project, index = 0, badge }: ProjectCardPr
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-starlight group-hover:text-nova-bright transition-colors truncate">
-            {project.name}
+          <h3 className="font-semibold text-starlight group-hover:text-nova-bright transition-colors truncate flex items-center gap-1.5">
+            <span className="truncate">{project.name}</span>
+            <VerifiedBadge
+              verifiedAt={project.owner_verified_at}
+              account={project.stellar_account_id}
+            />
           </h3>
           {project.username && (
             <p className="text-xs text-ash mt-0.5">by {project.username}</p>

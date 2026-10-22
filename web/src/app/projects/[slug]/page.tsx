@@ -6,6 +6,7 @@ import StarRating from "@/components/StarRating";
 import VerifiedOnChainBadge from "@/components/VerifiedOnChainBadge";
 import EmbedSnippet from "@/components/EmbedSnippet";
 import Avatar from "@/components/Avatar";
+import VerifiedBadge from "@/components/VerifiedBadge";
 import Link from "next/link";
 import {apiFetch, isApiFetchError} from "@/lib/api-fetch";
 import {useRetryCountdown} from "@/lib/use-retry-countdown";
@@ -43,6 +44,7 @@ interface Project {
 	user_id: number;
 	username?: string;
 	logo_url?: string;
+	owner_verified_at?: string | null;
 	created_at: string;
 }
 
@@ -719,7 +721,7 @@ export default function ProjectDetailPage({
 					) : (
 						project.name[0]
 					)}
-				</div>
+					</div>
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-3 flex-wrap">
 							<h1 className="font-display font-bold text-3xl sm:text-4xl text-starlight">
@@ -746,6 +748,10 @@ export default function ProjectDetailPage({
 									Registered on-chain
 								</a>
 							)}
+							<VerifiedBadge
+								verifiedAt={project.owner_verified_at}
+								account={project.stellar_account_id}
+							/>
 						</div>
 						<div className="flex items-center gap-3 mt-2 text-sm text-ash">
 							<span>by {project.username}</span>
