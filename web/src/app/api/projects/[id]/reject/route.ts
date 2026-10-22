@@ -32,6 +32,8 @@ export async function PUT(
     await ref.update({
       status: "rejected",
       rejection_reason: reason,
+      claimed_by: null,
+      claimed_at: null,
       updated_at: new Date().toISOString(),
     });
     const updated = await ref.get();
