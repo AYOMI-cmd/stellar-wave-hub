@@ -426,6 +426,8 @@ export default function ProjectDetailPage({
 				setProject(data.project);
 				setRatings(data.ratings || []);
 				setAverages(data.averages);
+				// Deep links from the admin reports inbox (#rating-<id>) open the Ratings tab.
+				if (/^#rating-\d+$/.test(window.location.hash)) setActiveTab("ratings");
 			})
 			.catch(() => {})
 			.finally(() => {
@@ -490,12 +492,6 @@ export default function ProjectDetailPage({
 			cancelled = true;
 		};
 	}, [project?.id, reloadKey]);
-
-	useEffect(() => {
-		if (/^#rating-\d+$/.test(window.location.hash)) {
-			setActiveTab("ratings");
-		}
-	}, [slug]);
 
 	useEffect(() => {
 		if (activeTab !== "ratings" || !ratings.length) return;
