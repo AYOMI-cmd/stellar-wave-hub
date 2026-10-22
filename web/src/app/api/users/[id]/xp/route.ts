@@ -5,9 +5,11 @@ export const revalidate = 60; // Cache for 60 seconds
 
 export async function GET(
   _request: Request,
-  { params }: { params: Promise<{ username: string }> }
+  // Next requires one param name per path level; /api/users/[id]/categories
+  // uses a numeric id, while this route receives the username in that slot.
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { username } = await params;
+  const { id: username } = await params;
 
   // Look up user by username
   const userSnap = await usersCol.ref
