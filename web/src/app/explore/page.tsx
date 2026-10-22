@@ -23,6 +23,7 @@ const SORT_OPTIONS = [
 	{value: "trending", label: "Trending"},
 	{value: "new-this-week", label: "New This Week"},
 	{value: "top-rated", label: "Top Rated"},
+	{value: "most-reviewed", label: "Most Reviewed"},
 	{value: "oldest", label: "Oldest"},
 ];
 

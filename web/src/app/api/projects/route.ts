@@ -155,6 +155,11 @@ export async function GET(request: Request) {
 						((b.avg_rating as number) || 0) -
 						((a.avg_rating as number) || 0)
 					);
+				if (sort === "most-reviewed")
+					return (
+						((b.rating_count as number) || 0) -
+						((a.rating_count as number) || 0)
+					);
 				// newest — featured first, then by date desc
 				if ((b.featured as number) !== (a.featured as number))
 					return (b.featured as number) - (a.featured as number);
