@@ -88,6 +88,8 @@ create table if not exists public.ratings (
   usability_score integer,
   review_text text,
   tx_hash text,
+  owner_reply text,
+  owner_reply_at timestamptz,
   created_at timestamptz not null default now(),
   constraint ratings_project_id_fkey
     foreign key (project_id)

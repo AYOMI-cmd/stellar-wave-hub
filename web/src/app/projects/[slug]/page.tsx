@@ -59,6 +59,8 @@ interface Rating {
 	created_at: string;
 	helpful_count?: number;
 	has_voted?: boolean;
+	owner_reply?: string | null;
+	owner_reply_at?: string | null;
 }
 
 interface Averages {
@@ -535,6 +537,87 @@ export default function ProjectDetailPage({
 		setSubmitting(false);
 	};
 
+	const startReplyEdit = (ratingId: number, currentReply?: string | null) => {
+		setEditingReplyRatingId(ratingId);
+		setReplyDraft(currentReply || "");
+		setReplyError(null);
+	};
+
+	const cancelReplyEdit = () => {
+		setEditingReplyRatingId(null);
+		setReplyDraft("");
+		setReplyError(null);
+	};
+
+	const handleSaveReply = async (ratingId: number) => {
+		if (!token || !replyDraft.trim()) return;
+		setReplySubmitting(true);
+		setReplyError(null);
+		try {
+			const res = await fetch(`/api/ratings/${ratingId}/reply`, {
+				method: "PUT",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({ owner_reply: replyDraft.trim() }),
+			});
+			const data = await res.json();
+			if (!res.ok) {
+				throw new Error(data.error || "Failed to save reply");
+			}
+			setRatings((prev) =>
+				prev.map((r) =>
+					r.id === ratingId
+						? {
+								...r,
+								owner_reply: replyDraft.trim(),
+								owner_reply_at: data.owner_reply_at || new Date().toISOString(),
+							}
+						: r
+				)
+			);
+			setEditingReplyRatingId(null);
+			setReplyDraft("");
+		} catch (err) {
+			setReplyError(err instanceof Error ? err.message : "Failed to save reply");
+		} finally {
+			setReplySubmitting(false);
+		}
+	};
+
+	const handleDeleteReply = async (ratingId: number) => {
+		if (!token || !window.confirm("Are you sure you want to delete this reply?")) return;
+		setReplySubmitting(true);
+		setReplyError(null);
+		try {
+			const res = await fetch(`/api/ratings/${ratingId}/reply`, {
+				method: "DELETE",
+				headers: {
+					Authorization: `Bearer ${token}`,
+				},
+			});
+			const data = await res.json();
+			if (!res.ok) {
+				throw new Error(data.error || "Failed to delete reply");
+			}
+			setRatings((prev) =>
+				prev.map((r) =>
+					r.id === ratingId
+						? { ...r, owner_reply: null, owner_reply_at: null }
+						: r
+				)
+			);
+			if (editingReplyRatingId === ratingId) {
+				cancelReplyEdit();
+			}
+		} catch (err) {
+			alert(err instanceof Error ? err.message : "Failed to delete reply");
+		} finally {
+			setReplySubmitting(false);
+		}
+	};
+
 	if (loading) {
 		return (
 			<div className="max-w-5xl mx-auto px-4 py-12">
@@ -564,6 +647,7 @@ export default function ProjectDetailPage({
 	const onChainActive = ON_CHAIN_ENABLED && isOnChainProject;
 	const feeLabel = formatFee(onChainActive ? contractRatingFee : null);
 	const canRate = user && user.id !== project.user_id && !alreadyRatedOnChain;
+	const isOwner = Boolean(user && project && user.id === project.user_id);
 
 	return (
 		<div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
