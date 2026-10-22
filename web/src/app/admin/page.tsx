@@ -881,7 +881,243 @@ function usdcToStroops(usdc: string): bigint {
   return BigInt(Math.round(n * 1_000_000));
 }
 
-function ContractPanel({ adminAddress }: { adminAddress: string }) {
+interface TreasuryHistoryDay {
+  date: string;
+  balance_stroops: string | null;
+  fees_stroops: string | null;
+}
+
+interface TreasuryHistoryResponse {
+  days: TreasuryHistoryDay[];
+  complete: boolean;
+  history_available_from: string;
+  updated_at: string;
+}
+
+function stroopsToUsdc(stroops: string | null): number | null {
+  return stroops === null ? null : Number(BigInt(stroops)) / 1_000_000;
+}
+
+function TreasuryHistoryChart({ token }: { token: string | null }) {
+  const historyQuery = useQuery<TreasuryHistoryResponse>({
+    queryKey: ["admin", "treasury-history"],
+    enabled: !!token,
+    queryFn: async () => {
+      const response = await fetch("/api/admin/treasury-history", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to load treasury history.");
+      }
+      return data as TreasuryHistoryResponse;
+    },
+  });
+
+  const history = historyQuery.data;
+  const loading = historyQuery.isLoading || historyQuery.isFetching;
+  const error = historyQuery.error instanceof Error
+    ? historyQuery.error.message
+    : historyQuery.error
+      ? "Failed to load treasury history."
+      : null;
+  const points = history?.days ?? [];
+  const balances = points
+    .map((point) => stroopsToUsdc(point.balance_stroops))
+    .filter((value): value is number => value !== null);
+  const fees = points
+    .map((point) => stroopsToUsdc(point.fees_stroops))
+    .filter((value): value is number => value !== null);
+  const currentBalance = balances.at(-1) ?? null;
+  const totalFees = fees.reduce((total, value) => total + value, 0);
+  const maxFee = Math.max(...fees, 0);
+  const minBalance = Math.min(...balances, 0);
+  const maxBalance = Math.max(...balances, 0);
+  const balanceRange = Math.max(maxBalance - minBalance, 0.000001);
+  const chart = { width: 900, height: 300, left: 58, right: 18, top: 18, bottom: 40 };
+  const plotWidth = chart.width - chart.left - chart.right;
+  const plotHeight = chart.height - chart.top - chart.bottom;
+  const x = (index: number) =>
+    chart.left + (index / Math.max(points.length - 1, 1)) * plotWidth;
+  const balanceY = (value: number) =>
+    chart.top + ((maxBalance - value) / balanceRange) * plotHeight;
+  const feeHeight = (value: number) =>
+    maxFee > 0 ? (value / maxFee) * plotHeight * 0.35 : 0;
+  const balancePath = points
+    .map((point, index) => {
+      const value = stroopsToUsdc(point.balance_stroops);
+      return value === null ? "" : `${index === 0 || !points[index - 1]?.balance_stroops ? "M" : "L"} ${x(index)} ${balanceY(value)}`;
+    })
+    .filter(Boolean)
+    .join(" ");
+  const formatUsdc = (value: number | null) =>
+    value === null
+      ? "—"
+      : `${value.toLocaleString("en-US", { maximumFractionDigits: 2 })} USDC`;
+
+  return (
+    <section className="glass rounded-2xl p-5 sm:p-6" aria-labelledby="treasury-history-title">
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-ash mb-1">
+            On-chain · Last 90 days
+          </p>
+          <h3 id="treasury-history-title" className="font-semibold text-starlight">
+            Treasury history
+          </h3>
+        </div>
+        <button
+          type="button"
+          onClick={() => historyQuery.refetch()}
+          disabled={loading}
+          className="btn-ghost text-xs !py-1.5 !px-3 disabled:opacity-50"
+        >
+          {loading ? "Refreshing…" : "Refresh history"}
+        </button>
+      </div>
+
+      {error ? (
+        <div className="rounded-xl border border-supernova/20 bg-supernova/10 px-4 py-3 text-sm text-supernova" role="alert">
+          {error}
+        </div>
+      ) : loading && !history ? (
+        <div className="skeleton h-64 rounded-xl" aria-label="Loading treasury history" />
+      ) : history ? (
+        <>
+          <div className="flex flex-wrap gap-x-8 gap-y-3 mb-5">
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-ash">Current balance</p>
+              <p className="font-mono text-lg font-semibold text-starlight">
+                {formatUsdc(currentBalance)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-ash">Fees in period</p>
+              <p className="font-mono text-lg font-semibold text-aurora-bright">
+                {formatUsdc(totalFees)}
+              </p>
+            </div>
+            <div className="flex items-center gap-4 text-xs text-ash sm:ml-auto">
+              <span className="inline-flex items-center gap-2">
+                <span className="h-0.5 w-4 bg-plasma-bright" />
+                Balance
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-sm bg-aurora/70" />
+                Fees / day
+              </span>
+            </div>
+          </div>
+
+          {!history.complete && (
+            <p className="text-xs text-solar-bright mb-3" role="status">
+              RPC history is available from {new Date(history.history_available_from).toLocaleDateString()}.
+              Earlier dates are omitted; configure an archival Soroban RPC to see the full 90 days.
+            </p>
+          )}
+
+          <div className="overflow-x-auto">
+            <svg
+              className="w-full min-w-[640px]"
+              viewBox={`0 0 ${chart.width} ${chart.height}`}
+              role="img"
+              aria-label="Treasury balance and daily fees collected over the last 90 days"
+            >
+              {[0, 0.5, 1].map((fraction) => {
+                const y = chart.top + fraction * plotHeight;
+                const value = maxBalance - fraction * balanceRange;
+                return (
+                  <g key={fraction}>
+                    <line
+                      x1={chart.left}
+                      y1={y}
+                      x2={chart.width - chart.right}
+                      y2={y}
+                      stroke="rgba(148,163,184,0.14)"
+                      strokeDasharray="3 6"
+                    />
+                    <text x={chart.left - 10} y={y + 4} textAnchor="end" fill="#8994a8" fontSize="10">
+                      {value.toLocaleString("en-US", { maximumFractionDigits: 1 })}
+                    </text>
+                  </g>
+                );
+              })}
+              {points.map((point, index) => {
+                const fee = stroopsToUsdc(point.fees_stroops);
+                if (fee === null || fee === 0) return null;
+                const barWidth = Math.max(2, (plotWidth / points.length) * 0.58);
+                const height = feeHeight(fee);
+                return (
+                  <rect
+                    key={`fee-${point.date}`}
+                    x={x(index) - barWidth / 2}
+                    y={chart.top + plotHeight - height}
+                    width={barWidth}
+                    height={height}
+                    rx="2"
+                    fill="rgba(75,220,166,0.58)"
+                  >
+                    <title>{`${point.date}: ${formatUsdc(fee)} fees`}</title>
+                  </rect>
+                );
+              })}
+              <path
+                d={balancePath}
+                fill="none"
+                stroke="#b69aff"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+              />
+              {points.map((point, index) => {
+                const balance = stroopsToUsdc(point.balance_stroops);
+                if (balance === null || index % 7 !== 0) return null;
+                return (
+                  <circle
+                    key={`balance-${point.date}`}
+                    cx={x(index)}
+                    cy={balanceY(balance)}
+                    r="3"
+                    fill="#d5c4ff"
+                    stroke="#171326"
+                    strokeWidth="1.5"
+                  >
+                    <title>{`${point.date}: ${formatUsdc(balance)} balance`}</title>
+                  </circle>
+                );
+              })}
+              {points.map((point, index) => {
+                if (index % 15 !== 0 && index !== points.length - 1) return null;
+                return (
+                  <text
+                    key={`date-${point.date}`}
+                    x={x(index)}
+                    y={chart.height - 12}
+                    textAnchor={index === 0 ? "start" : index === points.length - 1 ? "end" : "middle"}
+                    fill="#8994a8"
+                    fontSize="10"
+                  >
+                    {new Date(`${point.date}T00:00:00Z`).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      timeZone: "UTC",
+                    })}
+                  </text>
+                );
+              })}
+            </svg>
+          </div>
+          <p className="text-[10px] text-ash/70 mt-2">
+            Balance measured at day end. Fees show successful USDC transfers into the contract.
+          </p>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+function ContractPanel({ adminAddress, token }: { adminAddress: string; token: string | null }) {
   const [info, setInfo] = useState<ContractInfo>({
     version: null, wasmVersion: null, admin: null,
     ratingFee: null, registrationFee: null, treasuryBalance: null,
@@ -1020,6 +1256,8 @@ function ContractPanel({ adminAddress }: { adminAddress: string }) {
           </div>
         )}
       </div>
+
+      <TreasuryHistoryChart token={token} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Set Rating Fee */}
@@ -1499,7 +1737,7 @@ export default function AdminPage() {
           {/* ── Contract tab ── */}
           <TabsContent value="contract">
             {user?.stellar_address ? (
-              <ContractPanel adminAddress={user.stellar_address} />
+              <ContractPanel adminAddress={user.stellar_address} token={token} />
             ) : (
               <div className="glass rounded-2xl p-12 text-center">
                 <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-solar/10 flex items-center justify-center">

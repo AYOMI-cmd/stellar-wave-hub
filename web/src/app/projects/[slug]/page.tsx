@@ -3,6 +3,7 @@
 import {useEffect, useState, use} from "react";
 import {useAuth} from "@/context/AuthContext";
 import StarRating from "@/components/StarRating";
+import EmbedSnippet from "@/components/EmbedSnippet";
 import Avatar from "@/components/Avatar";
 import Link from "next/link";
 import Image from "next/image";
@@ -10,6 +11,8 @@ import {
 	ON_CHAIN_ENABLED,
 	rateProjectOnChain,
 	explorerTxUrl,
+	explorerAccountUrl,
+	explorerContractUrl,
 	getRatingFee,
 	hasRatedOnChain,
 	getProjectRatingFromEvents,
@@ -71,15 +74,10 @@ interface FinancialSummary {
 	}[];
 }
 
-function stellarExplorerBase(network?: string) {
-	return network === "testnet"
-		? "https://stellar.expert/explorer/testnet"
-		: "https://stellar.expert/explorer/public";
-}
-
 function StellarAddressLink({address, type, network}: {address: string; type: "account" | "contract"; network?: string}) {
-	const path = type === "account" ? "account" : "contract";
-	const href = `${stellarExplorerBase(network)}/${path}/${address}`;
+	const href = type === "account"
+		? explorerAccountUrl(address, network)
+		: explorerContractUrl(address, network);
 	return (
 		<a
 			href={href}
@@ -593,7 +591,7 @@ export default function ProjectDetailPage({
 										<div>
 											<p className="text-xs text-ash uppercase tracking-wider mb-2">Stellar Account</p>
 											<a
-												href={`${stellarExplorerBase(project.stellar_network)}/account/${project.stellar_account_id}`}
+												href={explorerAccountUrl(project.stellar_account_id, project.stellar_network)}
 												target="_blank"
 												rel="noopener noreferrer"
 												className="font-mono text-sm text-plasma-bright hover:text-plasma break-all inline-flex items-start gap-2 group transition-colors"
@@ -611,7 +609,7 @@ export default function ProjectDetailPage({
 										<div>
 											<p className="text-xs text-ash uppercase tracking-wider mb-2">Soroban Contract</p>
 											<a
-												href={`${stellarExplorerBase(project.stellar_network)}/contract/${project.stellar_contract_id}`}
+												href={explorerContractUrl(project.stellar_contract_id, project.stellar_network)}
 												target="_blank"
 												rel="noopener noreferrer"
 												className="font-mono text-sm text-plasma-bright hover:text-plasma break-all inline-flex items-start gap-2 group transition-colors"
@@ -712,6 +710,9 @@ export default function ProjectDetailPage({
 								</div>
 							</div>
 						)}
+
+						{/* Embed snippet — shown at the bottom of the overview for project authors and visitors */}
+						<EmbedSnippet slug={project.slug} />
 					</div>
 				)}
 
@@ -985,7 +986,7 @@ export default function ProjectDetailPage({
 										Stellar Account
 									</h2>
 									<a
-										href={`${stellarExplorerBase(project.stellar_network)}/account/${project.stellar_account_id}`}
+										href={explorerAccountUrl(project.stellar_account_id, project.stellar_network)}
 										target="_blank"
 										rel="noopener noreferrer"
 										className="font-mono text-sm text-plasma-bright hover:text-plasma break-all inline-flex items-start gap-2 group transition-colors"

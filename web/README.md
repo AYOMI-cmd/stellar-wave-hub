@@ -7,7 +7,8 @@ Create a `.env` file in `web/` with:
 ```bash
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
-JWT_SECRET=your-secret-key-change-this
+# Required in production: use a unique random secret with at least 32 characters.
+JWT_SECRET=replace-with-a-random-secret-at-least-32-characters
 STELLAR_HORIZON_URL=https://horizon.stellar.org
 ```
 

@@ -1,5 +1,7 @@
 import { projectsCol, usersCol, ratingsCol, ratingVotesCol } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
+import { projectsCol, usersCol, ratingsCol } from "@/lib/db";
+import { publicProjectCacheHeaders } from "@/lib/public-project-cache";
 export const dynamic = "force-dynamic";
 
 export async function GET(
@@ -123,5 +125,8 @@ export async function GET(
     total: ratings.length,
   };
 
-  return Response.json({ project: projectData, ratings, averages });
+  return Response.json(
+    { project: projectData, ratings, averages },
+    { headers: publicProjectCacheHeaders }
+  );
 }
