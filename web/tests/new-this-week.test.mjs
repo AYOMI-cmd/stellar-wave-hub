@@ -102,6 +102,9 @@ async function listProjects(rows, search = "sort=new-this-week&limit=6") {
     "@/lib/auth": {},
     "@/lib/validation/parse-body": {},
     "@/lib/validation/schemas/projects": {},
+    "@/lib/public-project-cache": { publicProjectCacheHeaders: {} },
+    "@/lib/notifications": {},
+    "@/lib/rate-limit": {},
     slugify: () => { throw new Error("POST must not execute"); },
     "@/lib/firebase": {
       getSupabase: () => ({
