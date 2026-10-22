@@ -6,7 +6,10 @@ import StarRating from "@/components/StarRating";
 import EmbedSnippet from "@/components/EmbedSnippet";
 import Avatar from "@/components/Avatar";
 import Link from "next/link";
+import {apiFetch, isApiFetchError} from "@/lib/api-fetch";
+import {useRetryCountdown} from "@/lib/use-retry-countdown";
 import Image from "next/image";
+
 import {
 	ON_CHAIN_ENABLED,
 	rateProjectOnChain,
@@ -134,6 +137,11 @@ export default function ProjectDetailPage({
 	});
 	const [submitting, setSubmitting] = useState(false);
 	const [ratingMsg, setRatingMsg] = useState("");
+	const {
+		remainingSeconds,
+		start: startRetryCountdown,
+		clear: clearRetryCountdown,
+	} = useRetryCountdown();
 	const [ratingStep, setRatingStep] = useState<"idle" | "onchain" | "saving">("idle");
 	const [lastTxHash, setLastTxHash] = useState<string | null>(null);
 
@@ -225,6 +233,7 @@ export default function ProjectDetailPage({
 		if (!project || !token || ratingForm.score === 0) return;
 		setSubmitting(true);
 		setRatingMsg("");
+		clearRetryCountdown();
 		setLastTxHash(null);
 
 		try {
@@ -245,7 +254,7 @@ export default function ProjectDetailPage({
 			}
 
 			setRatingStep("saving");
-			const res = await fetch("/api/ratings", {
+			await apiFetch("/api/ratings", {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -257,8 +266,6 @@ export default function ProjectDetailPage({
 					tx_hash: txHash,
 				}),
 			});
-			const data = await res.json();
-			if (!res.ok) throw new Error(data.error);
 
 			setRatingMsg(txHash ? "Rating submitted on-chain!" : "Rating submitted!");
 
@@ -284,7 +291,11 @@ export default function ProjectDetailPage({
 				review_text: "",
 			});
 		} catch (err) {
-			setRatingMsg(err instanceof Error ? err.message : "Failed to submit");
+			if (isApiFetchError(err) && err.status === 429) {
+				startRetryCountdown(err.retryAfterSeconds ?? 1);
+			} else {
+				setRatingMsg(err instanceof Error ? err.message : "Failed to submit");
+			}
 		}
 		setRatingStep("idle");
 		setSubmitting(false);
@@ -717,11 +728,14 @@ export default function ProjectDetailPage({
 										before rating.
 									</div>
 								)}
-								{ratingMsg && (
+								{(ratingMsg || remainingSeconds > 0) && (
 									<div
-										className={`rounded-xl px-4 py-3 text-sm ${ratingMsg.includes("submitted") ? "bg-aurora/10 border border-aurora/20 text-aurora-bright" : "bg-supernova/10 border border-supernova/20 text-supernova"}`}
+										role={remainingSeconds > 0 ? "status" : undefined}
+										className={`rounded-xl px-4 py-3 text-sm ${remainingSeconds > 0 ? "bg-solar/10 border border-solar/20 text-solar-bright" : ratingMsg.includes("submitted") ? "bg-aurora/10 border border-aurora/20 text-aurora-bright" : "bg-supernova/10 border border-supernova/20 text-supernova"}`}
 									>
-										{ratingMsg}
+										{remainingSeconds > 0
+											? `Too many attempts. Try again in ${remainingSeconds}s.`
+											: ratingMsg}
 										{lastTxHash && (
 											<>
 												{" "}
@@ -775,6 +789,7 @@ export default function ProjectDetailPage({
 									type="submit"
 									disabled={
 										submitting ||
+										remainingSeconds > 0 ||
 										ratingForm.score === 0 ||
 										(onChainActive && !user?.stellar_address)
 									}
