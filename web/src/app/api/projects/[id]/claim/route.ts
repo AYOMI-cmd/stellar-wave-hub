@@ -1,17 +1,8 @@
 import { projectsCol } from "@/lib/db";
 import { getAuthUser, hasMinRole } from "@/lib/auth";
 import { getSupabase } from "@/lib/firebase";
+import { claimExpiryCutoff, isClaimActive } from "@/lib/claims";
 export const dynamic = "force-dynamic";
-
-// A claim older than this is considered abandoned and can be taken over.
-const CLAIM_TTL_MS = 30 * 60 * 1000;
-
-function isClaimExpired(claimedAt: unknown): boolean {
-  if (!claimedAt) return true;
-  const claimedTime = new Date(String(claimedAt)).getTime();
-  if (Number.isNaN(claimedTime)) return true;
-  return Date.now() - claimedTime >= CLAIM_TTL_MS;
-}
 
 export async function POST(
   request: Request,
@@ -36,7 +27,7 @@ export async function POST(
   if (
     claimedBy !== null &&
     Number(claimedBy) !== auth.userId &&
-    !isClaimExpired(project.claimed_at)
+    isClaimActive(project)
   ) {
     return Response.json(
       { error: "Project is already claimed by another maintainer" },
@@ -48,7 +39,7 @@ export async function POST(
     // Conditional update so two maintainers racing for the same project
     // can't both win: only succeeds if the row is still unclaimed, already
     // ours, or its claim has gone stale.
-    const staleBefore = new Date(Date.now() - CLAIM_TTL_MS).toISOString();
+    const staleBefore = claimExpiryCutoff();
     const { data, error } = await getSupabase()
       .from("projects")
       .update({ claimed_by: auth.userId, claimed_at: new Date().toISOString() })

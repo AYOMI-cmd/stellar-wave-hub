@@ -3,6 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import SubmissionNotes from "@/components/SubmissionNotes";
+import { useAuth } from "@/context/AuthContext";
+import { hasMinRole } from "@/lib/roles";
 
 interface QueueProject {
   id: number;
@@ -15,10 +17,9 @@ interface QueueProject {
   github_repos?: { label: string; url: string }[];
   username: string | null;
   created_at: string;
-  claimed_by?: string | null;
-  claimed_at?: string | null;
-  claimed_by_me?: boolean;
-  can_claim?: boolean;
+  claimed_by: number | null;
+  claimed_by_username: string | null;
+  claimed_at: string | null;
 }
 
 function timeAgo(dateStr: string) {
@@ -35,6 +36,9 @@ function timeAgo(dateStr: string) {
 
 export default function QueuePage() {
   const queryClient = useQueryClient();
+  const { user, token } = useAuth();
+  const canClaim = !!user && !!token && hasMinRole(user.role, "maintainer");
+  const isAdmin = user?.role === "admin";
   const { data, isLoading } = useQuery<{ projects: QueueProject[]; total: number }>({
     queryKey: ["project-queue"],
     queryFn: () => fetch("/api/projects/queue").then((r) => r.json()),
@@ -43,14 +47,18 @@ export default function QueuePage() {
 
   const claimMutation = useMutation({
     mutationFn: ({ id, action }: { id: number; action: "claim" | "release" }) =>
-      fetch(`/api/projects/queue/${id}/${action}`, { method: "POST" }).then(async (r) => {
+      fetch(`/api/projects/${id}/claim`, {
+        method: action === "claim" ? "POST" : "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      }).then(async (r) => {
         if (!r.ok) {
           const body = await r.json().catch(() => ({}));
           throw new Error(body.error || `Failed to ${action}`);
         }
         return r.json();
       }),
-    onSuccess: () => {
+    // Refetch either way so the button reflects the server's view of the claim.
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["project-queue"] });
     },
   });
@@ -58,6 +66,7 @@ export default function QueuePage() {
   const projects = data?.projects || [];
   const total = data?.total || 0;
   const pendingId = claimMutation.isPending ? claimMutation.variables?.id : null;
+  const errorId = claimMutation.isError ? claimMutation.variables?.id : null;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -128,7 +137,7 @@ export default function QueuePage() {
                     </span>
                     {project.claimed_by && (
                       <span className="tag bg-nova/10 text-nova-bright border border-nova/20 text-xs">
-                        Reviewing: @{project.claimed_by}
+                        Reviewing: @{project.claimed_by_username ?? "unknown"}
                         {project.claimed_at ? ` (${timeAgo(project.claimed_at)})` : ""}
                       </span>
                     )}
@@ -175,34 +184,44 @@ export default function QueuePage() {
                     )}
                   </div>
 
-                  {project.can_claim && (
-                    <div className="mt-3 flex items-center gap-2">
-                      {project.claimed_by ? (
-                        <button
-                          type="button"
-                          onClick={() => claimMutation.mutate({ id: project.id, action: "release" })}
-                          disabled={claimMutation.isPending}
-                          className="btn-ghost text-xs disabled:opacity-50"
-                        >
-                          {claimMutation.isPending ? "Releasing..." : "Release"}
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => claimMutation.mutate({ id: project.id, action: "claim" })}
-                          disabled={claimMutation.isPending}
-                          className="btn-nova text-xs disabled:opacity-50"
-                        >
-                          {claimMutation.isPending ? "Claiming..." : "Claim"}
-                        </button>
-                      )}
-                      {project.claimed_by && !project.claimed_by_me && (
-                        <span className="text-xs text-solar-bright">
-                          Claimed by another reviewer — approve/reject with care
-                        </span>
-                      )}
-                    </div>
-                  )}
+                  {canClaim && (() => {
+                    const claimedByMe = project.claimed_by === user!.id;
+                    const claimedByOther = project.claimed_by !== null && !claimedByMe;
+                    const busy = pendingId === project.id;
+                    return (
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {project.claimed_by === null ? (
+                          <button
+                            type="button"
+                            onClick={() => claimMutation.mutate({ id: project.id, action: "claim" })}
+                            disabled={busy}
+                            className="btn-nova text-xs disabled:opacity-50"
+                          >
+                            {busy ? "Claiming..." : "Claim"}
+                          </button>
+                        ) : (claimedByMe || isAdmin) ? (
+                          <button
+                            type="button"
+                            onClick={() => claimMutation.mutate({ id: project.id, action: "release" })}
+                            disabled={busy}
+                            className="btn-ghost text-xs disabled:opacity-50"
+                          >
+                            {busy ? "Releasing..." : claimedByMe ? "Release" : "Force release"}
+                          </button>
+                        ) : null}
+                        {claimedByOther && (
+                          <span className="text-xs text-solar-bright">
+                            Claimed by another reviewer — approve/reject with care
+                          </span>
+                        )}
+                        {errorId === project.id && (
+                          <span role="alert" className="text-xs text-supernova">
+                            {claimMutation.error?.message}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
               <SubmissionNotes projectId={project.id} />
