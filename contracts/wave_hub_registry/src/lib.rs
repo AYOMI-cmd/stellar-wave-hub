@@ -185,9 +185,7 @@ impl WaveHubRegistry {
     // ── Project management (admin) ──────────────────────────────────────
 
     /// Register a project on-chain. `payer` pays the registration fee.
-
     pub fn register_project(
-        
         env: Env,
         admin: Address,
         project_id: Symbol,

@@ -3,6 +3,7 @@
 import {useEffect, useState, use, type ReactNode} from "react";
 import {useAuth} from "@/context/AuthContext";
 import StarRating from "@/components/StarRating";
+import VerifiedOnChainBadge from "@/components/VerifiedOnChainBadge";
 import EmbedSnippet from "@/components/EmbedSnippet";
 import Avatar from "@/components/Avatar";
 import Link from "next/link";
@@ -1369,22 +1370,7 @@ export default function ProjectDetailPage({
 											{rating.usability_score && (
 												<span>Usability: {rating.usability_score}/5</span>
 											)}
-											{rating.tx_hash && (
-												<a
-													href={explorerTxUrl(rating.tx_hash)}
-													target="_blank"
-													rel="noopener noreferrer"
-													className="tag tag-plasma text-[10px] inline-flex items-center gap-1"
-													title={`On-chain tx: ${rating.tx_hash}`}
-												>
-													<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-														<path d="M12 2L2 7l10 5 10-5-10-5z" />
-														<path d="M2 17l10 5 10-5" />
-														<path d="M2 12l10 5 10-5" />
-													</svg>
-													On-chain
-												</a>
-											)}
+											<VerifiedOnChainBadge txHash={rating.tx_hash} network={project.stellar_network} />
 											{user && user.id !== rating.user_id ? (
 												<button
 													type="button"
