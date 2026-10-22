@@ -2,6 +2,7 @@ import { projectsCol } from "@/lib/db";
 import { getAuthUser, hasMinRole } from "@/lib/auth";
 import { parseJsonBody } from "@/lib/validation/parse-body";
 import { editProjectSchema } from "@/lib/validation/schemas/projects";
+import { revalidatePublicProjectCache } from "@/lib/public-project-cache";
 export const dynamic = "force-dynamic";
 
 export async function PUT(
@@ -34,6 +35,7 @@ export async function PUT(
     }
 
     await ref.update(updates);
+    revalidatePublicProjectCache();
     const updated = await ref.get();
     return Response.json({ project: { ...updated.data(), id: updated.data()!.numericId } });
   } catch (err) {
