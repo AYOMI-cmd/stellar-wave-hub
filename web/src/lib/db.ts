@@ -46,6 +46,11 @@ export const maintainerApplicationsCol = {
 		return col("maintainer_applications");
 	},
 };
+export const ratingVotesCol = {
+	get ref() {
+		return col("rating_votes");
+	},
+};
 export const notificationsCol = {
 	get ref() {
 		return col("notifications");

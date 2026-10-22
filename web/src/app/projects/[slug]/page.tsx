@@ -57,6 +57,8 @@ interface Rating {
 	avatar_url?: string | null;
 	user_id: number;
 	created_at: string;
+	helpful_count?: number;
+	has_voted?: boolean;
 }
 
 interface Averages {
@@ -272,6 +274,15 @@ function renderReviewMarkdown(markdown: string): ReactNode {
 	return <div className="space-y-2">{blocks}</div>;
 }
 
+type ReviewSort = "helpful" | "recent" | "highest" | "lowest";
+
+const REVIEW_SORT_OPTIONS: {value: ReviewSort; label: string}[] = [
+	{value: "helpful", label: "Most Helpful"},
+	{value: "recent", label: "Newest"},
+	{value: "highest", label: "Highest rated"},
+	{value: "lowest", label: "Lowest rated"},
+];
+
 export default function ProjectDetailPage({
 	params,
 }: {
@@ -320,17 +331,75 @@ export default function ProjectDetailPage({
 	const [reportMsg, setReportMsg] = useState("");
 	const [reportedIds, setReportedIds] = useState<number[]>([]);
 
+	// Review ordering and helpful votes (#213)
+	const [reviewSort, setReviewSort] = useState<ReviewSort>("helpful");
+	const [votingRatingId, setVotingRatingId] = useState<number | null>(null);
+
+	// Bumped to refetch the project + ratings (e.g. after submitting a rating).
+	const [reloadKey, setReloadKey] = useState(0);
+
 	useEffect(() => {
-		fetch(`/api/projects/${slug}`)
+		let cancelled = false;
+		// Signed-in requests get has_voted per review.
+		fetch(`/api/projects/${slug}?sort=${reviewSort}`, {
+			headers: token ? {Authorization: `Bearer ${token}`} : undefined,
+		})
 			.then((r) => r.json())
 			.then((data) => {
+				if (cancelled) return;
 				setProject(data.project);
 				setRatings(data.ratings || []);
 				setAverages(data.averages);
 			})
 			.catch(() => {})
-			.finally(() => setLoading(false));
-	}, [slug]);
+			.finally(() => {
+				if (!cancelled) setLoading(false);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [slug, token, reviewSort, reloadKey]);
+
+	const handleVoteHelpful = async (ratingId: number, currentlyVoted: boolean) => {
+		if (!token) {
+			alert("Please log in to vote on reviews.");
+			return;
+		}
+
+		setVotingRatingId(ratingId);
+		try {
+			const method = currentlyVoted ? "DELETE" : "POST";
+			const res = await fetch(`/api/ratings/${ratingId}/vote`, {
+				method,
+				headers: {
+					Authorization: `Bearer ${token}`,
+				},
+			});
+			const data = await res.json();
+			if (!res.ok) {
+				alert(data.error || "Failed to update vote");
+				return;
+			}
+
+			// Update rating item in local state
+			setRatings((prev) =>
+				prev.map((r) => {
+					if (r.id === ratingId) {
+						return {
+							...r,
+							helpful_count: data.helpful_count,
+							has_voted: data.has_voted,
+						};
+					}
+					return r;
+				})
+			);
+		} catch (err) {
+			console.error("Failed to vote:", err);
+		} finally {
+			setVotingRatingId(null);
+		}
+	};
 
 	useEffect(() => {
 		if (project?.stellar_account_id) {
@@ -438,10 +507,7 @@ export default function ProjectDetailPage({
 			setRatingMsg(txHash ? "Rating submitted on-chain!" : "Rating submitted!");
 
 			// Refresh off-chain ratings
-			const refresh = await fetch(`/api/projects/${slug}`);
-			const rd = await refresh.json();
-			setRatings(rd.ratings || []);
-			setAverages(rd.averages);
+			setReloadKey((key) => key + 1);
 
 			// Refresh on-chain aggregate
 			if (onChainActive) {
@@ -988,6 +1054,24 @@ export default function ProjectDetailPage({
 						)}
 
 						{/* Existing ratings */}
+						{ratings.length > 1 && (
+							<div className="flex justify-end mb-3">
+								<label className="flex items-center gap-2 text-xs text-ash">
+									Sort by:
+									<select
+										className="input-field !w-auto !py-1.5 text-xs"
+										value={reviewSort}
+										onChange={(e) => setReviewSort(e.target.value as ReviewSort)}
+									>
+										{REVIEW_SORT_OPTIONS.map((option) => (
+											<option key={option.value} value={option.value}>
+												{option.label}
+											</option>
+										))}
+									</select>
+								</label>
+							</div>
+						)}
 						{ratings.length > 0 ? (
 							<div className="space-y-4">
 								{ratings.map((rating) => (
@@ -1006,9 +1090,6 @@ export default function ProjectDetailPage({
 													<span className="font-medium text-starlight text-sm">
 														{rating.username}
 													</span>
-													<p className="text-xs text-ash">
-														{new Date(rating.created_at).toLocaleDateString()}
-													</p>
 												</div>
 											</div>
 											<div className="flex items-center gap-1">
@@ -1057,6 +1138,25 @@ export default function ProjectDetailPage({
 													On-chain
 												</a>
 											)}
+											{user && user.id !== rating.user_id ? (
+												<button
+													type="button"
+													onClick={() => handleVoteHelpful(rating.id, !!rating.has_voted)}
+													disabled={votingRatingId === rating.id}
+													aria-pressed={!!rating.has_voted}
+													className={`inline-flex items-center gap-1 transition-colors disabled:opacity-50 ${
+														rating.has_voted ? "text-aurora-bright" : "text-ash hover:text-moonlight"
+													}`}
+												>
+													<svg width="12" height="12" viewBox="0 0 24 24" fill={rating.has_voted ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+														<path d="M7 10v12" />
+														<path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" />
+													</svg>
+													Helpful{rating.helpful_count ? ` (${rating.helpful_count})` : ""}
+												</button>
+											) : rating.helpful_count ? (
+												<span>{rating.helpful_count} found this helpful</span>
+											) : null}
 											{user && user.id !== rating.user_id && (
 												reportedIds.includes(rating.id) ? (
 													<span className="ml-auto text-ash">Reported</span>
