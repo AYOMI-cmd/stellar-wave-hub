@@ -7,6 +7,7 @@ import {hasMinRole} from "@/lib/roles";
 import {useState} from "react";
 import Avatar from "@/components/Avatar";
 import RoleBadge from "@/components/RoleBadge";
+import NotificationsMenu from "@/components/NotificationsMenu";
 
 export default function Navbar() {
 	const {user, logout, loading} = useAuth();
@@ -103,6 +104,7 @@ export default function Navbar() {
 									<RoleBadge role={user.role as "contributor" | "maintainer" | "admin"} />
 								</div>
 							</Link>
+							<NotificationsMenu />
 								<button
 									onClick={logout}
 									className="btn-ghost text-sm !py-1.5 !px-3"

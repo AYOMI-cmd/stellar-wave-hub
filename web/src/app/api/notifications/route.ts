@@ -1,5 +1,6 @@
-import { notificationsCol, projectsCol } from "@/lib/db";
+import { notificationsCol } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
+
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
@@ -12,10 +13,13 @@ export async function GET(request: Request) {
       .orderBy("created_at", "desc")
       .get();
 
-    const notifications = snap.docs.map((d) => ({
-      id: d.data().numericId ?? d.id,
-      ...d.data(),
-    }));
+    const notifications = snap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: data.numericId ?? data.id ?? d.id,
+        ...data,
+      };
+    });
 
     return Response.json({ notifications });
   } catch (err) {
