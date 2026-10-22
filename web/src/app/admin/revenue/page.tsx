@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { hasMinRole } from "@/lib/roles";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useQueries } from "@tanstack/react-query";
 
 interface Purchase {
   project_id: number;
