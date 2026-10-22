@@ -3,11 +3,16 @@
 import {useEffect, useState, use} from "react";
 import {useAuth} from "@/context/AuthContext";
 import StarRating from "@/components/StarRating";
+import EmbedSnippet from "@/components/EmbedSnippet";
+import Avatar from "@/components/Avatar";
 import Link from "next/link";
+import Image from "next/image";
 import {
 	ON_CHAIN_ENABLED,
 	rateProjectOnChain,
 	explorerTxUrl,
+	explorerAccountUrl,
+	explorerContractUrl,
 	getRatingFee,
 	hasRatedOnChain,
 	getProjectRatingFromEvents,
@@ -32,6 +37,7 @@ interface Project {
 	github_repos?: { label: string; url: string }[];
 	user_id: number;
 	username?: string;
+	logo_url?: string;
 	created_at: string;
 }
 
@@ -44,6 +50,7 @@ interface Rating {
 	review_text?: string;
 	tx_hash?: string;
 	username: string;
+	avatar_url?: string | null;
 	user_id: number;
 	created_at: string;
 }
@@ -65,15 +72,10 @@ interface FinancialSummary {
 	}[];
 }
 
-function stellarExplorerBase(network?: string) {
-	return network === "testnet"
-		? "https://stellar.expert/explorer/testnet"
-		: "https://stellar.expert/explorer/public";
-}
-
 function StellarAddressLink({address, type, network}: {address: string; type: "account" | "contract"; network?: string}) {
-	const path = type === "account" ? "account" : "contract";
-	const href = `${stellarExplorerBase(network)}/${path}/${address}`;
+	const href = type === "account"
+		? explorerAccountUrl(address, network)
+		: explorerContractUrl(address, network);
 	return (
 		<a
 			href={href}
@@ -135,6 +137,13 @@ export default function ProjectDetailPage({
 	const [ratingStep, setRatingStep] = useState<"idle" | "onchain" | "saving">("idle");
 	const [lastTxHash, setLastTxHash] = useState<string | null>(null);
 
+	// Report review state
+	const [reportingId, setReportingId] = useState<number | null>(null);
+	const [reportReason, setReportReason] = useState("spam");
+	const [reportBusy, setReportBusy] = useState(false);
+	const [reportMsg, setReportMsg] = useState("");
+	const [reportedIds, setReportedIds] = useState<number[]>([]);
+
 	useEffect(() => {
 		fetch(`/api/projects/${slug}`)
 			.then((r) => r.json())
@@ -181,6 +190,35 @@ export default function ProjectDetailPage({
 			.then((rated) => setAlreadyRatedOnChain(rated))
 			.catch(() => {});
 	}, [isOnChainProject, project, user]);
+
+	const submitReport = async (e: React.FormEvent<HTMLFormElement>) => {
+		e.preventDefault();
+		if (!token || reportingId === null) return;
+		setReportBusy(true);
+		setReportMsg("");
+		try {
+			const res = await fetch("/api/reports", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({
+					target_type: "rating",
+					target_id: reportingId,
+					reason: reportReason,
+				}),
+			});
+			const data = await res.json();
+			if (!res.ok) throw new Error(data.error);
+			setReportedIds((p) => [...p, reportingId]);
+			setReportingId(null);
+			setReportReason("spam");
+		} catch (err) {
+			setReportMsg(err instanceof Error ? err.message : "Failed to report");
+		}
+		setReportBusy(false);
+	};
 
 	const submitRating = async (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
@@ -287,9 +325,19 @@ export default function ProjectDetailPage({
 			{/* Header */}
 			<div className="mb-8 animate-in">
 				<div className="flex items-start gap-4 mb-4">
-					<div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-nova/30 to-plasma/30 border border-nova/20 flex items-center justify-center text-2xl font-bold text-nova-bright shrink-0">
-						{project.name[0]}
-					</div>
+					<div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-nova/30 to-plasma/30 border border-nova/20 flex items-center justify-center text-2xl font-bold text-nova-bright shrink-0 overflow-hidden">
+					{project.logo_url ? (
+						<Image
+							src={project.logo_url}
+							alt={`${project.name} logo`}
+							width={64}
+							height={64}
+							className="w-full h-full object-cover"
+						/>
+					) : (
+						project.name[0]
+					)}
+				</div>
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-3 flex-wrap">
 							<h1 className="font-display font-bold text-3xl sm:text-4xl text-starlight">
@@ -496,7 +544,7 @@ export default function ProjectDetailPage({
 										<div>
 											<p className="text-xs text-ash uppercase tracking-wider mb-2">Stellar Account</p>
 											<a
-												href={`${stellarExplorerBase(project.stellar_network)}/account/${project.stellar_account_id}`}
+												href={explorerAccountUrl(project.stellar_account_id, project.stellar_network)}
 												target="_blank"
 												rel="noopener noreferrer"
 												className="font-mono text-sm text-plasma-bright hover:text-plasma break-all inline-flex items-start gap-2 group transition-colors"
@@ -514,7 +562,7 @@ export default function ProjectDetailPage({
 										<div>
 											<p className="text-xs text-ash uppercase tracking-wider mb-2">Soroban Contract</p>
 											<a
-												href={`${stellarExplorerBase(project.stellar_network)}/contract/${project.stellar_contract_id}`}
+												href={explorerContractUrl(project.stellar_contract_id, project.stellar_network)}
 												target="_blank"
 												rel="noopener noreferrer"
 												className="font-mono text-sm text-plasma-bright hover:text-plasma break-all inline-flex items-start gap-2 group transition-colors"
@@ -615,6 +663,9 @@ export default function ProjectDetailPage({
 								</div>
 							</div>
 						)}
+
+						{/* Embed snippet — shown at the bottom of the overview for project authors and visitors */}
+						<EmbedSnippet slug={project.slug} />
 					</div>
 				)}
 
@@ -750,9 +801,11 @@ export default function ProjectDetailPage({
 									>
 										<div className="flex items-center justify-between mb-3">
 											<div className="flex items-center gap-3">
-												<div className="w-9 h-9 rounded-full bg-gradient-to-br from-nova/40 to-comet/40 flex items-center justify-center text-xs font-bold text-white">
-													{rating.username[0].toUpperCase()}
-												</div>
+												<Avatar
+													username={rating.username}
+													avatarUrl={rating.avatar_url}
+													className="w-9 h-9 text-xs"
+												/>
 												<div>
 													<span className="font-medium text-starlight text-sm">
 														{rating.username}
@@ -808,7 +861,48 @@ export default function ProjectDetailPage({
 													On-chain
 												</a>
 											)}
+											{user && user.id !== rating.user_id && (
+												reportedIds.includes(rating.id) ? (
+													<span className="ml-auto text-ash">Reported</span>
+												) : (
+													<button
+														type="button"
+														onClick={() => {
+															setReportingId(reportingId === rating.id ? null : rating.id);
+															setReportMsg("");
+														}}
+														className="ml-auto inline-flex items-center gap-1 text-ash hover:text-supernova transition-colors"
+														aria-label={`Report review by ${rating.username}`}
+													>
+														<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+															<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+															<line x1="4" y1="22" x2="4" y2="15" />
+														</svg>
+														Report
+													</button>
+												)
+											)}
 										</div>
+										{reportingId === rating.id && (
+											<form onSubmit={submitReport} className="mt-4 flex items-center gap-3 flex-wrap">
+												<select
+													className="input-field !w-auto"
+													value={reportReason}
+													onChange={(e) => setReportReason(e.target.value)}
+													aria-label="Report reason"
+												>
+													<option value="spam">Spam</option>
+													<option value="abusive">Abusive or offensive</option>
+													<option value="off_topic">Off topic</option>
+													<option value="misleading">Misleading</option>
+													<option value="other">Other</option>
+												</select>
+												<button type="submit" disabled={reportBusy} className="btn-nova !py-1.5 text-sm disabled:opacity-50">
+													{reportBusy ? "Sending..." : "Submit report"}
+												</button>
+												{reportMsg && <span className="text-xs text-supernova">{reportMsg}</span>}
+											</form>
+										)}
 									</div>
 								))}
 							</div>
@@ -889,7 +983,7 @@ export default function ProjectDetailPage({
 										Stellar Account
 									</h2>
 									<a
-										href={`${stellarExplorerBase(project.stellar_network)}/account/${project.stellar_account_id}`}
+										href={explorerAccountUrl(project.stellar_account_id, project.stellar_network)}
 										target="_blank"
 										rel="noopener noreferrer"
 										className="font-mono text-sm text-plasma-bright hover:text-plasma break-all inline-flex items-start gap-2 group transition-colors"
