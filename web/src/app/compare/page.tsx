@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import {getSupabase} from "@/lib/firebase";
+import CompareFinancials from "@/components/CompareFinancials";
 
 type SearchParams = Promise<{[key: string]: string | string[] | undefined}>;
 type ProjectRow = {
@@ -149,6 +150,7 @@ export default async function ComparePage({searchParams}: {searchParams: SearchP
 										<th scope="row" className="px-5 py-5 text-sm font-medium text-moonlight">Rating count</th>
 										{projectScores.map((scores, index) => <td key={projects[index].id} className="px-5 py-5 text-sm text-starlight">{scores.count}</td>)}
 									</tr>
+									<CompareFinancials projectIds={projects.map((project) => project.id)} layout="table" />
 								</tbody>
 							</table>
 						</div>
@@ -165,6 +167,7 @@ export default async function ComparePage({searchParams}: {searchParams: SearchP
 										<dt className="text-sm text-moonlight">Rating count</dt>
 										<dd className="text-sm text-starlight">{projectScores[projectIndex].count}</dd>
 									</div>
+									<CompareFinancials projectIds={projects.map((project) => project.id)} layout="card" projectIndex={projectIndex} />
 								</dl>
 							</article>)}
 						</div>
