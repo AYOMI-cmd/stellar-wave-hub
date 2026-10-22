@@ -8,6 +8,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
+import {apiFetch} from "@/lib/api-fetch";
 
 interface User {
   id: number;
@@ -73,26 +74,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshUser]);
 
   const login = async (email: string, password: string) => {
-    const res = await fetch("/api/auth/login", {
+    const data = await apiFetch<{ token: string; user: User }>("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Login failed");
+    if (!data) throw new Error("Login failed");
     localStorage.setItem("swh_token", data.token);
     setToken(data.token);
     setUser(data.user);
   };
 
   const register = async (username: string, email: string, password: string) => {
-    const res = await fetch("/api/auth/register", {
+    const data = await apiFetch<{ token: string; user: User }>("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, email, password }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Registration failed");
+    if (!data) throw new Error("Registration failed");
     localStorage.setItem("swh_token", data.token);
     setToken(data.token);
     setUser(data.user);

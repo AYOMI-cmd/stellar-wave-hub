@@ -28,6 +28,7 @@ describe("Environment Configuration Example (.env.example)", () => {
     "NEXT_PUBLIC_SOROBAN_RPC_URL",
     "STELLAR_HORIZON_URL",
     "NEXT_PUBLIC_CONTRACT_ID",
+    "NEXT_PUBLIC_USDC_SAC",
     "CRON_SECRET",
   ];
 

@@ -1,4 +1,4 @@
--- Migration 009: Add rating_votes table for review helpfulness upvotes
+-- Migration 202610220910: Add rating_votes table for review helpfulness upvotes
 -- Run this in Supabase SQL Editor
 
 begin;

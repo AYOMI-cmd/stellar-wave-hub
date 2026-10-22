@@ -1,6 +1,5 @@
 import { projectsCol, usersCol, ratingsCol, ratingVotesCol } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
-import { projectsCol, usersCol, ratingsCol } from "@/lib/db";
 import { publicProjectCacheHeaders } from "@/lib/public-project-cache";
 export const dynamic = "force-dynamic";
 
@@ -127,6 +126,11 @@ export async function GET(
 
   return Response.json(
     { project: projectData, ratings, averages },
-    { headers: publicProjectCacheHeaders }
+    {
+      // has_voted is per-user, so signed-in responses must not hit a shared cache.
+      headers: currentUserId
+        ? { "Cache-Control": "private, no-store" }
+        : publicProjectCacheHeaders,
+    }
   );
 }

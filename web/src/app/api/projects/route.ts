@@ -3,9 +3,14 @@ import {getAuthUser} from "@/lib/auth";
 import {parseJsonBody} from "@/lib/validation/parse-body";
 import {createProjectSchema} from "@/lib/validation/schemas/projects";
 import {publicProjectCacheHeaders} from "@/lib/public-project-cache";
+import {notifyMaintainersOfSubmission} from "@/lib/notifications";
 import slugify from "slugify";
 import {getSupabase} from "@/lib/firebase";
+import {checkRateLimit, getClientIp, rateLimitExceededResponse} from "@/lib/rate-limit";
 export const dynamic = "force-dynamic";
+
+// Rate limit: 5 project submissions per hour per user (falls back to IP when anonymous)
+const SUBMIT_RATE_LIMIT = {limit: 5, windowMs: 60 * 60_000};
 
 export async function GET(request: Request) {
 	try {
@@ -19,12 +24,19 @@ export async function GET(request: Request) {
 			50,
 			Math.max(1, Number(url.searchParams.get("limit")) || 12),
 		);
+		const now = Date.now();
+		const DAY_MS = 24 * 60 * 60 * 1000;
 
 		const supabase = getSupabase();
 		let query = supabase
 			.from("projects")
 			.select("*", { count: "exact" })
 			.in("status", ["approved", "featured"]);
+		if (sort === "new-this-week") {
+			query = query
+				.gte("created_at", new Date(now - 7 * DAY_MS).toISOString())
+				.order("created_at", { ascending: false });
+		}
 
 		if (category) {
 			query = query.ilike("category", category);
@@ -46,7 +58,7 @@ export async function GET(request: Request) {
 		const { data, count, error } = await query;
 		if (error) throw error;
 
-		let projects: Record<string, unknown>[] = (data || []).map((row) => ({
+		const projects: Record<string, unknown>[] = (data || []).map((row) => ({
 			...row,
 			id: row.numericId,
 		}));
@@ -67,9 +79,6 @@ export async function GET(request: Request) {
 				created_at: (r.created_at as string) || "",
 			});
 		});
-
-		const now = Date.now();
-		const DAY_MS = 24 * 60 * 60 * 1000;
 
 		const computeRatingVelocity = (items: RatingItem[]): number => {
 			if (!items || items.length === 0) return 0;
@@ -118,15 +127,10 @@ export async function GET(request: Request) {
 
 		// Sort
 		if (sort === "new-this-week") {
-			const oneWeekAgo = new Date(now - 7 * DAY_MS).toISOString();
-			const thisWeekItems = enriched.filter((p) => (p.created_at as string) >= oneWeekAgo);
-			// If there are projects added within the last 7 calendar days, focus on them
-			if (thisWeekItems.length >= 3) {
-				enriched.length = 0;
-				enriched.push(...thisWeekItems);
-			}
 			// Sort strictly by created_at descending (newest first)
-			enriched.sort((a, b) => ((b.created_at as string) > (a.created_at as string) ? 1 : -1));
+			enriched.sort((a, b) =>
+				new Date(b.created_at as string).getTime() - new Date(a.created_at as string).getTime(),
+			);
 		} else {
 			enriched.sort((a, b) => {
 				if (sort === "trending" || sort === "velocity") {
@@ -149,6 +153,11 @@ export async function GET(request: Request) {
 					return (
 						((b.avg_rating as number) || 0) -
 						((a.avg_rating as number) || 0)
+					);
+				if (sort === "most-reviewed")
+					return (
+						((b.rating_count as number) || 0) -
+						((a.rating_count as number) || 0)
 					);
 				// newest — featured first, then by date desc
 				if ((b.featured as number) !== (a.featured as number))
@@ -176,6 +185,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
 	const auth = getAuthUser(request);
+	const rateLimitKey = auth
+		? `projects-submit:user:${auth.userId}`
+		: `projects-submit:ip:${getClientIp(request)}`;
+	const rl = checkRateLimit(rateLimitKey, SUBMIT_RATE_LIMIT);
+	if (!rl.allowed) return rateLimitExceededResponse(rl.retryAfterSeconds);
+
 	if (!auth) return Response.json({error: "Unauthorized"}, {status: 401});
 
 	const parsed = await parseJsonBody(request, createProjectSchema);
@@ -231,6 +246,18 @@ export async function POST(request: Request) {
 		};
 
 		await projectsCol.ref.doc(String(numericId)).set(project);
+
+		// Notify maintainers of the new submission (fire-and-forget)
+		// Notification failure must not block the submission response
+		notifyMaintainersOfSubmission({
+			numericId,
+			name,
+			category,
+			user_id: auth.userId,
+		}).catch((err) =>
+			console.error("Failed to send maintainer notifications:", err)
+		);
+
 		return Response.json(
 			{project: {...project, id: numericId}},
 			{status: 201},

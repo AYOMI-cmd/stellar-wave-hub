@@ -10,7 +10,7 @@ const webRoot = path.resolve(__dirname, "..");
 
 describe("Review Helpfulness Upvotes and Sorting (Issue #213)", () => {
   const schemaFile = path.join(webRoot, "data", "supabase", "schema.sql");
-  const migrationFile = path.join(webRoot, "data", "supabase", "009_add_rating_votes.sql");
+  const migrationFile = path.join(webRoot, "data", "supabase", "202610220910_add_rating_votes.sql");
   const rlsFile = path.join(webRoot, "data", "supabase", "rls.sql");
   const dbFile = path.join(webRoot, "src", "lib", "db.ts");
   const firebaseFile = path.join(webRoot, "src", "lib", "firebase.ts");
@@ -21,7 +21,7 @@ describe("Review Helpfulness Upvotes and Sorting (Issue #213)", () => {
   const projectDetailPageFile = path.join(webRoot, "src", "app", "projects", "[slug]", "page.tsx");
 
   test("should define rating_votes table and migration with unique constraint", () => {
-    assert.ok(fs.existsSync(migrationFile), "009_add_rating_votes.sql must exist");
+    assert.ok(fs.existsSync(migrationFile), "202610220910_add_rating_votes.sql must exist");
     assert.ok(fs.existsSync(schemaFile), "schema.sql must exist");
 
     const migrationContent = fs.readFileSync(migrationFile, "utf-8");

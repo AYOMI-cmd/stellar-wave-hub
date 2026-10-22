@@ -30,7 +30,24 @@ export async function GET(
           avatar_url = u.data()!.avatar_url ?? null;
         }
       }
-      return { ...r, id: r.numericId ?? d.id, username, avatar_url };
+      const votesSnap = await ratingVotesCol.ref
+        .where("rating_id", "==", ratingId)
+        .get();
+      const helpful_count = votesSnap.docs.length;
+      const has_voted = currentUserId
+        ? votesSnap.docs.some((vote) => vote.data().user_id === currentUserId)
+        : false;
+
+      return {
+        ...r,
+        id: ratingId,
+        score: Number(r.score || 0),
+        created_at: String(r.created_at ?? ""),
+        username,
+        avatar_url,
+        helpful_count,
+        has_voted,
+      };
     })
   );
 

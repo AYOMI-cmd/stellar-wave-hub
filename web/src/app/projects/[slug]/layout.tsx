@@ -31,6 +31,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       project.description?.slice(0, 160) ||
       `Explore ${project.name} on Stellar Wave Hub`;
 
+    // `openGraph.images` / `twitter.images` are intentionally omitted: Next.js
+    // attaches the colocated `opengraph-image.tsx` (name, category, rating)
+    // to both automatically. Setting them here would override that image.
     return {
       title,
       description,
@@ -45,7 +48,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         siteName: "Stellar Wave Hub",
       },
       twitter: {
-        card: "summary",
+        card: "summary_large_image",
         title,
         description,
       },
