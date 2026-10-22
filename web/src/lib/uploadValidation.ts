@@ -88,7 +88,7 @@ const UNSAFE_SVG_PATTERNS: RegExp[] = [
   /<!/, // DOCTYPE, ENTITY, CDATA, comments
   /<\?(?!xml[\s?])/i, // processing instructions other than the xml declaration
   /&#/, // numeric character references can hide payloads
-  /<\s*(script|foreignObject|iframe|embed|object|audio|video|animate\w*|set|style|link|meta|image|a)\b/i,
+  /<\s*([\w.-]+:)?(script|foreignObject|iframe|embed|object|audio|video|animate\w*|set|style|link|meta|image|a)\b/i, // incl. namespace-prefixed (<x:script>)
   /[\s/"']on\w+\s*=/i, // inline event handlers
   /javascript\s*:/i,
   /data\s*:/i,
