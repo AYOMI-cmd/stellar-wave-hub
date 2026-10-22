@@ -71,6 +71,7 @@ function setup() {
   } };
   const mocks = {
     "@/lib/auth": { getAuthUser: () => state.auth, hasMinRole: (role) => role === "admin" },
+    "@/lib/public-project-cache": { revalidatePublicProjectCache: () => {} },
     "@/lib/db": { projectsCol: { ref: { doc: () => ({ get: async () => snapshot(state.project) }) } } },
     "@/lib/firebase": { __esModule: true, getSupabase: () => db, default: {
       collection: () => ({ doc: () => ({ get: async () => snapshot(state.challenge) }) }),
