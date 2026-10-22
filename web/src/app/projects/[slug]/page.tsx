@@ -112,6 +112,15 @@ function formatFee(stroops: bigint | null): string {
 	return `${usdc.toFixed(usdc < 0.01 ? 6 : 2)} USDC`;
 }
 
+interface GithubStats {
+	stars: number;
+	forks: number;
+	openIssues: number;
+	lastCommit: string | null;
+	license: string | null;
+}
+
+
 function renderInlineMarkdown(text: string): ReactNode[] {
 	const nodes: ReactNode[] = [];
 	const pattern =
@@ -309,6 +318,7 @@ export default function ProjectDetailPage({
 	const [ratings, setRatings] = useState<Rating[]>([]);
 	const [averages, setAverages] = useState<Averages | null>(null);
 	const [financials, setFinancials] = useState<FinancialSummary | null>(null);
+	const [githubStats, setGithubStats] = useState<GithubStats | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [activeTab, setActiveTab] = useState<
 		"overview" | "ratings" | "financials"
@@ -448,6 +458,17 @@ export default function ProjectDetailPage({
 				})
 				.catch(() => {});
 		}
+	}, [project]);
+
+	// Fetch GitHub repo stats (hidden on error)
+	useEffect(() => {
+		if (!project?.github_url) return;
+		fetch(`/api/projects/${project.id}/github`)
+			.then((r) => (r.ok ? r.json() : null))
+			.then((data) => {
+				if (data) setGithubStats(data);
+			})
+			.catch(() => {});
 	}, [project]);
 
 	// Fetch registration status, rating fee, and on-chain aggregate
@@ -966,6 +987,40 @@ export default function ProjectDetailPage({
 								{project.description}
 							</p>
 						</div>
+
+						{githubStats && (
+							<div className="glass rounded-2xl p-8">
+								<h2 className="font-semibold text-lg text-starlight mb-4">
+									GitHub Stats
+								</h2>
+								<div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+									<div className="bg-stardust/30 rounded-xl px-5 py-4 text-center">
+										<p className="text-2xl font-bold text-solar-bright">{githubStats.stars}</p>
+										<p className="text-xs text-ash mt-1 uppercase tracking-wider">Stars</p>
+									</div>
+									<div className="bg-stardust/30 rounded-xl px-5 py-4 text-center">
+										<p className="text-2xl font-bold text-nova-bright">{githubStats.forks}</p>
+										<p className="text-xs text-ash mt-1 uppercase tracking-wider">Forks</p>
+									</div>
+									<div className="bg-stardust/30 rounded-xl px-5 py-4 text-center">
+										<p className="text-2xl font-bold text-plasma-bright">{githubStats.openIssues}</p>
+										<p className="text-xs text-ash mt-1 uppercase tracking-wider">Open Issues</p>
+									</div>
+									<div className="bg-stardust/30 rounded-xl px-5 py-4 text-center">
+										<p className="text-sm font-semibold text-aurora-bright">
+											{githubStats.license || "N/A"}
+										</p>
+										<p className="text-xs text-ash mt-1 uppercase tracking-wider">License</p>
+									</div>
+								</div>
+								{githubStats.lastCommit && (
+									<p className="text-xs text-ash mt-4">
+										Last commit:{" "}
+										{new Date(githubStats.lastCommit).toLocaleDateString()}
+									</p>
+								)}
+							</div>
+						)}
 
 						{/* Stellar addresses section */}
 						{(project.stellar_account_id || project.stellar_contract_id) && (
