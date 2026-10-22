@@ -27,12 +27,23 @@ const rpcUrl =
 
 export const ON_CHAIN_ENABLED = Boolean(CONTRACT_ID);
 
-export function explorerTxUrl(hash: string): string {
-  const base =
-    NETWORK === "mainnet"
-      ? "https://stellar.expert/explorer/public"
-      : "https://stellar.expert/explorer/testnet";
-  return `${base}/tx/${hash}`;
+function stellarExpertBase(network?: string): string {
+  const n = network ?? NETWORK;
+  return n === "testnet"
+    ? "https://stellar.expert/explorer/testnet"
+    : "https://stellar.expert/explorer/public";
+}
+
+export function explorerTxUrl(hash: string, network?: string): string {
+  return `${stellarExpertBase(network)}/tx/${hash}`;
+}
+
+export function explorerAccountUrl(address: string, network?: string): string {
+  return `${stellarExpertBase(network)}/account/${address}`;
+}
+
+export function explorerContractUrl(address: string, network?: string): string {
+  return `${stellarExpertBase(network)}/contract/${address}`;
 }
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
