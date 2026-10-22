@@ -159,6 +159,12 @@ create table if not exists public.project_updates (
 create index if not exists project_updates_project_created_at_idx
   on public.project_updates (project_id, created_at desc);
 
+create table if not exists public.treasury_snapshots (
+  snapshot_date date primary key,
+  balance numeric(39, 0) not null,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.promo_codes (
   id bigserial primary key,
   code text not null,

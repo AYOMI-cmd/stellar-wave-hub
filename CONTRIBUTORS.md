@@ -15,23 +15,23 @@ Thank you to everyone who has contributed to Stellar Wave Hub! Add yourself belo
 <div
 	style="display:inline-block;width:130px;vertical-align:top;text-align:center;margin:8px"
 >
-	<a href="https://github.com/YOUR_GITHUB_USERNAME">
+	<a href="https://github.com/Sharon-dev-create">
 		<img
-			src="https://github.com/YOUR_GITHUB_USERNAME.png"
+			src="https://github.com/Sharon-dev-create.png"
 			width="80"
 			style="border-radius:50%"
-			alt="Your Name"
+			alt="TopG"
 		/>
 		<br />
-		<sub><b>Your Name</b></sub>
+		<sub><b>Sharon Emmanuel</b></sub>
 	</a>
 	<br />
-	<a href="https://github.com/YOUR_GITHUB_USERNAME"
+	<a href="https://github.com/Sharon-dev-create"
 		><img
 			src="https://img.shields.io/badge/-GitHub-181717?logo=github&logoColor=white&style=flat-square"
 			alt="GitHub"
 	/></a>
-	<a href="https://x.com/YOUR_X_HANDLE"
+	<a href="https://x.com/named_sharon"
 		><img
 			src="https://img.shields.io/badge/-X-000000?logo=x&logoColor=white&style=flat-square"
 			alt="X"

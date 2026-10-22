@@ -18,6 +18,7 @@ alter table public.counters enable row level security;
 alter table public.financial_snapshots enable row level security;
 alter table public.reports enable row level security;
 alter table public.project_updates enable row level security;
+alter table public.treasury_snapshots enable row level security;
 
 -- USERS
 drop policy if exists users_public_read on public.users;
@@ -259,7 +260,7 @@ create policy rating_votes_owner_delete
     )
   );
 
--- BACKEND-ONLY TABLES (auth_challenges, counters, financial_snapshots)
+-- BACKEND-ONLY TABLES (auth_challenges, counters, financial_snapshots, treasury_snapshots)
 -- No anon/authenticated policies are added. With RLS enabled, direct client access is denied.
 -- Server-side use with SUPABASE_SERVICE_ROLE_KEY remains allowed.
 
