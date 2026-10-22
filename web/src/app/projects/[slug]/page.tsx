@@ -337,6 +337,12 @@ export default function ProjectDetailPage({
 	const [reviewSort, setReviewSort] = useState<ReviewSort>("helpful");
 	const [votingRatingId, setVotingRatingId] = useState<number | null>(null);
 
+	// Owner reply editor (#529)
+	const [editingReplyRatingId, setEditingReplyRatingId] = useState<number | null>(null);
+	const [replyDraft, setReplyDraft] = useState("");
+	const [replyError, setReplyError] = useState<string | null>(null);
+	const [replySubmitting, setReplySubmitting] = useState(false);
+
 	// Bumped to refetch the project + ratings (e.g. after submitting a rating).
 	const [reloadKey, setReloadKey] = useState(0);
 
@@ -1263,6 +1269,79 @@ export default function ProjectDetailPage({
 												)
 											)}
 										</div>
+										{editingReplyRatingId === rating.id ? (
+											<div className="mt-4 ml-6 space-y-2 border-l-2 border-nova/30 pl-4">
+												<textarea
+													className="input-field w-full text-sm"
+													rows={3}
+													maxLength={5000}
+													value={replyDraft}
+													onChange={(e) => setReplyDraft(e.target.value)}
+													aria-label={`Reply to ${rating.username}'s review`}
+													placeholder="Write a public reply as the project owner"
+												/>
+												{replyError && (
+													<p role="alert" className="text-xs text-supernova">{replyError}</p>
+												)}
+												<div className="flex gap-2">
+													<button
+														type="button"
+														onClick={() => handleSaveReply(rating.id)}
+														disabled={replySubmitting || !replyDraft.trim()}
+														className="btn-nova !py-1.5 text-xs disabled:opacity-50"
+													>
+														{replySubmitting ? "Saving..." : "Save reply"}
+													</button>
+													<button
+														type="button"
+														onClick={cancelReplyEdit}
+														disabled={replySubmitting}
+														className="btn-ghost !py-1.5 text-xs"
+													>
+														Cancel
+													</button>
+												</div>
+											</div>
+										) : rating.owner_reply ? (
+											<div className="mt-4 ml-6 border-l-2 border-nova/30 pl-4">
+												<div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
+													<span className="tag tag-nova text-[10px]">Owner</span>
+													{rating.owner_reply_at && (
+														<span className="text-ash">
+															{new Date(rating.owner_reply_at).toLocaleDateString()}
+														</span>
+													)}
+													{isOwner && (
+														<>
+															<button
+																type="button"
+																onClick={() => startReplyEdit(rating.id, rating.owner_reply)}
+																className="text-ash hover:text-moonlight"
+															>
+																Edit reply
+															</button>
+															<button
+																type="button"
+																onClick={() => handleDeleteReply(rating.id)}
+																disabled={replySubmitting}
+																className="text-ash hover:text-supernova disabled:opacity-50"
+															>
+																Delete
+															</button>
+														</>
+													)}
+												</div>
+												<p className="whitespace-pre-line text-sm text-moonlight/80">{rating.owner_reply}</p>
+											</div>
+										) : isOwner ? (
+											<button
+												type="button"
+												onClick={() => startReplyEdit(rating.id)}
+												className="mt-3 text-xs text-nova-bright hover:underline"
+											>
+												Reply as owner
+											</button>
+										) : null}
 										{reportingId === rating.id && (
 											<form onSubmit={submitReport} className="mt-4 flex items-center gap-3 flex-wrap">
 												<select
