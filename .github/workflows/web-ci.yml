@@ -32,7 +32,7 @@ jobs:
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "dummy-anon-key"
       SUPABASE_URL: "https://placeholder.supabase.co"
       SUPABASE_SERVICE_ROLE_KEY: "dummy-service-role-key"
-      JWT_SECRET: "dummy-jwt-secret-for-ci"
+      JWT_SECRET: "dummy-jwt-secret-for-ci-at-least-32-chars"
       CRON_SECRET: "dummy-cron-secret-for-ci"
       NEXT_PUBLIC_CONTRACT_NETWORK: "testnet"
       NEXT_PUBLIC_SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org"
