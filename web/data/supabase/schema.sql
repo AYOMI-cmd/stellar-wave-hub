@@ -139,6 +139,26 @@ create table if not exists public.financial_snapshots (
 create index if not exists financial_snapshots_project_id_idx on public.financial_snapshots (project_id);
 create index if not exists financial_snapshots_created_at_idx on public.financial_snapshots (created_at desc);
 
+create table if not exists public.project_updates (
+  id bigint primary key,
+  project_id bigint not null,
+  author_id bigint not null,
+  title text not null check (char_length(title) between 1 and 120),
+  body text not null check (char_length(body) between 1 and 5000),
+  created_at timestamptz not null default now(),
+  constraint project_updates_project_id_fkey
+    foreign key (project_id)
+    references public.projects ("numericId")
+    on delete cascade,
+  constraint project_updates_author_id_fkey
+    foreign key (author_id)
+    references public.users ("numericId")
+    on delete cascade
+);
+
+create index if not exists project_updates_project_created_at_idx
+  on public.project_updates (project_id, created_at desc);
+
 create table if not exists public.promo_codes (
   id bigserial primary key,
   code text not null,
@@ -191,7 +211,8 @@ values
   ('projects', 0),
   ('ratings', 0),
   ('rating_votes', 0),
-  ('reports', 0)
+  ('reports', 0),
+  ('project_updates', 0)
 on conflict (name) do nothing;
 
 create table if not exists public.rating_votes (
@@ -215,6 +236,8 @@ create index if not exists rating_votes_user_id_idx on public.rating_votes (user
 create index if not exists rating_votes_created_at_idx on public.rating_votes (created_at desc);
 
 alter table public.reports enable row level security;
+
+alter table public.project_updates enable row level security;
 
 commit;
 

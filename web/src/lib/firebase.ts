@@ -14,6 +14,7 @@ const TABLE_BY_COLLECTION: Record<string, string> = {
 	submission_notes: "submission_notes",
 	maintainer_applications: "maintainer_applications",
 	notifications: "notifications",
+	project_updates: "project_updates",
 	promo_codes: "promo_codes",
 	reports: "reports",
 };

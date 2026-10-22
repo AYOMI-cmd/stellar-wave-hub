@@ -51,6 +51,11 @@ export const ratingVotesCol = {
 		return col("rating_votes");
 	},
 };
+export const projectUpdatesCol = {
+	get ref() {
+		return col("project_updates");
+	},
+};
 export const notificationsCol = {
 	get ref() {
 		return col("notifications");
