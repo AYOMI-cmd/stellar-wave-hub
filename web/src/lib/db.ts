@@ -47,6 +47,31 @@ export const notificationsCol = {
 	},
 };
 
+export type ModerationAction = "approve" | "reject" | "feature" | "delist" | "delete";
+
+/**
+ * Record a moderation action in the audit log. Never throws: a logging
+ * failure must not undo a moderation decision that already succeeded.
+ */
+export async function logModerationAction(input: {
+  actor_id: number;
+  action: ModerationAction;
+  project_id: number;
+  reason?: string | null;
+}) {
+  try {
+    const {error} = await getSupabase().from("moderation_log").insert({
+      actor_id: input.actor_id,
+      action: input.action,
+      project_id: input.project_id,
+      reason: input.reason ?? null,
+    });
+    if (error) throw error;
+  } catch (err) {
+    console.error("Failed to write moderation log:", err);
+  }
+}
+
 export async function createNotification(input: {
   user_id: number;
   project_id: number;

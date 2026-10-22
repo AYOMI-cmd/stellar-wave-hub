@@ -1,4 +1,4 @@
-import { projectsCol, createNotification } from "@/lib/db";
+import { projectsCol, createNotification, logModerationAction } from "@/lib/db";
 import { getAuthUser, hasMinRole } from "@/lib/auth";
 import { parseJsonBody } from "@/lib/validation/parse-body";
 import { rejectProjectSchema } from "@/lib/validation/schemas/featured";
@@ -38,6 +38,12 @@ export async function PUT(
     });
     const updated = await ref.get();
     const projectData = updated.data()!;
+    await logModerationAction({
+      actor_id: auth.userId,
+      action: "reject",
+      project_id: projectData.numericId as number,
+      reason,
+    });
 
     await createNotification({
       user_id: projectData.user_id as number,

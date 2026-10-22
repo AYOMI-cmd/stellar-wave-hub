@@ -1,55 +1,81 @@
-import { NextResponse } from "next/server";
-import { headers } from "next/headers";
+import { getAuthUser, hasMinRole } from "@/lib/auth";
+import { getSupabase } from "@/lib/firebase";
+export const dynamic = "force-dynamic";
+
+type ModeratorStats = {
+  actor_id: number;
+  approvals: number;
+  rejections: number;
+  delists: number;
+  total_actions: number;
+};
 
 /**
  * GET /api/admin/maintainer-stats
- * Returns per-maintainer moderation stats from the moderation_log table.
+ * Per-moderator counts aggregated from the moderation_log table.
  *
- * Query Params:
- * - since: ISO date string to filter logs after a given date
- * - me: 1 (or true) to restrict output to only the requesting user's row
+ * Query params:
+ * - since: ISO date; only count actions at or after it
+ * - me=1:  only the caller's own row (the only form maintainers may use)
  */
 export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const since = searchParams.get("since");
-    const meOnly = searchParams.get("me") === "1" || searchParams.get("me") === "true";
+  const auth = getAuthUser(request);
+  if (!auth || !hasMinRole(auth.role, "maintainer")) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
 
-    // Extract authorization/user headers passed by auth/proxy middleware
-    const headerList = await headers();
-    const userId = headerList.get("x-user-id");
-    const userRole = headerList.get("x-user-role") || "maintainer";
-
-    const isAdmin = userRole === "admin";
-
-    // Non-admins cannot see other moderators' stats without me=1
-    if (!isAdmin && !meOnly) {
-      return NextResponse.json(
-        { error: "Forbidden: Maintainers may only query their own stats (?me=1)" },
-        { status: 403 }
-      );
-    }
-
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Build stats aggregation query logic
-    const stats = [
-      {
-        actor_id: userId,
-        approvals: 0,
-        rejections: 0,
-        delists: 0,
-        total_actions: 0,
-      },
-    ];
-
-    return NextResponse.json({ stats }, { status: 200 });
-  } catch (error) {
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
+  const url = new URL(request.url);
+  const me = url.searchParams.get("me");
+  const meOnly = me === "1" || me === "true";
+  if (auth.role !== "admin" && !meOnly) {
+    return Response.json(
+      { error: "Maintainers may only query their own stats (?me=1)" },
+      { status: 403 },
     );
+  }
+
+  const sinceParam = url.searchParams.get("since");
+  let since: string | null = null;
+  if (sinceParam) {
+    const parsed = new Date(sinceParam);
+    if (Number.isNaN(parsed.getTime())) {
+      return Response.json({ error: "Invalid since date" }, { status: 400 });
+    }
+    since = parsed.toISOString();
+  }
+
+  try {
+    let query = getSupabase().from("moderation_log").select("actor_id, action");
+    if (meOnly) query = query.eq("actor_id", auth.userId);
+    if (since) query = query.gte("created_at", since);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const byActor = new Map<number, ModeratorStats>();
+    const statsFor = (actorId: number) => {
+      let row = byActor.get(actorId);
+      if (!row) {
+        row = { actor_id: actorId, approvals: 0, rejections: 0, delists: 0, total_actions: 0 };
+        byActor.set(actorId, row);
+      }
+      return row;
+    };
+    if (meOnly) statsFor(auth.userId);
+
+    for (const entry of data ?? []) {
+      const row = statsFor(Number(entry.actor_id));
+      row.total_actions++;
+      // A feature is an approval that also sets the spotlight.
+      if (entry.action === "approve" || entry.action === "feature") row.approvals++;
+      else if (entry.action === "reject") row.rejections++;
+      else if (entry.action === "delist") row.delists++;
+    }
+
+    const stats = [...byActor.values()].sort((a, b) => b.total_actions - a.total_actions);
+    return Response.json({ stats });
+  } catch (err) {
+    console.error("Maintainer stats error:", err);
+    return Response.json({ error: "Internal server error" }, { status: 500 });
   }
 }
