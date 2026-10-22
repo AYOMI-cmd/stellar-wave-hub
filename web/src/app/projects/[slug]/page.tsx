@@ -730,6 +730,22 @@ export default function ProjectDetailPage({
 									Featured
 								</span>
 							)}
+							{isOnChainProject && process.env.NEXT_PUBLIC_CONTRACT_ID && (
+								<a
+									href={explorerContractUrl(process.env.NEXT_PUBLIC_CONTRACT_ID, process.env.NEXT_PUBLIC_CONTRACT_NETWORK)}
+									target="_blank"
+									rel="noopener noreferrer"
+									className="tag tag-aurora inline-flex items-center gap-1.5 cursor-pointer hover:bg-aurora/20 transition-all"
+									title="This project is registered on-chain"
+								>
+									<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
+										<path d="M12 2L2 7l10 5 10-5-10-5z" />
+										<path d="M2 17l10 5 10-5" />
+										<path d="M2 12l10 5 10-5" />
+									</svg>
+									Registered on-chain
+								</a>
+							)}
 						</div>
 						<div className="flex items-center gap-3 mt-2 text-sm text-ash">
 							<span>by {project.username}</span>
