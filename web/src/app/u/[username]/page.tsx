@@ -33,7 +33,7 @@ export default async function UserProfilePage({
 	// Fetch projects
 	const projectsSnap = await projectsCol.ref
 		.where("user_id", "==", userId)
-		.where("status", "==", "approved")
+		.where("status", "in", ["approved", "featured"])
 		.get();
 	const projects = projectsSnap.docs.map((d) => d.data());
 
@@ -56,7 +56,13 @@ export default async function UserProfilePage({
 			projectName = pDoc.data()!.name as string;
 			projectSlug = pDoc.data()!.slug as string;
 		}
-		return { ...r, projectName, projectSlug };
+		return {
+			score: Number(r.score),
+			review_text: typeof r.review_text === "string" ? r.review_text : null,
+			created_at: String(r.created_at ?? ""),
+			projectName,
+			projectSlug,
+		};
 	}));
 
 	return (
@@ -139,14 +145,14 @@ export default async function UserProfilePage({
 											<svg width="12" height="12" viewBox="0 0 24 24" fill="var(--solar)" stroke="none">
 												<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
 											</svg>
-											<span className="font-semibold text-solar-bright">{Number(r.score).toFixed(1)}</span>
+											<span className="font-semibold text-solar-bright">{r.score.toFixed(1)}</span>
 										</div>
 									</div>
 									{r.review_text && (
-										<p className="text-xs text-moonlight/80 italic mt-1 line-clamp-3">"{r.review_text}"</p>
+										<p className="text-xs text-moonlight/80 italic mt-1 line-clamp-3">&ldquo;{r.review_text}&rdquo;</p>
 									)}
 									<p className="text-[10px] text-ash mt-2">
-										{new Date(r.created_at as string).toLocaleDateString()}
+										{new Date(r.created_at).toLocaleDateString()}
 									</p>
 								</div>
 							))}

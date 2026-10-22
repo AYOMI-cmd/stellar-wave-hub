@@ -4,11 +4,18 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 
+interface Notification {
+  id: number;
+  message: string;
+  read: boolean;
+  created_at: string;
+}
+
 export default function NotificationsMenu() {
   const { token, user } = useAuth();
   const [open, setOpen] = useState(false);
 
-  const { data: notifications = [], refetch } = useQuery({
+  const { data: notifications = [], refetch } = useQuery<Notification[]>({
     queryKey: ["notifications"],
     queryFn: async () => {
       const res = await fetch("/api/notifications", {
@@ -22,7 +29,7 @@ export default function NotificationsMenu() {
     refetchInterval: 30000,
   });
 
-  const unreadCount = notifications.filter((n: any) => !n.read).length;
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   const markAsRead = async (id: number) => {
     try {
@@ -63,7 +70,7 @@ export default function NotificationsMenu() {
           </div>
           <div className="max-h-80 overflow-y-auto">
             {notifications.length > 0 ? (
-              notifications.map((n: any) => (
+              notifications.map((n) => (
                 <div 
                   key={n.id} 
                   className={`p-4 border-b border-dust/10 last:border-0 hover:bg-stardust/10 transition-colors ${!n.read ? 'bg-nova/5' : ''}`}
