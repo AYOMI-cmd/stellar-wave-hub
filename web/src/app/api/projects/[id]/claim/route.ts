@@ -1,5 +1,6 @@
 import { projectsCol } from "@/lib/db";
 import { getAuthUser, hasMinRole } from "@/lib/auth";
+import { getSupabase } from "@/lib/firebase";
 export const dynamic = "force-dynamic";
 
 // A claim older than this is considered abandoned and can be taken over.
@@ -44,12 +45,24 @@ export async function POST(
   }
 
   try {
-    await ref.update({
-      claimed_by: auth.userId,
-      claimed_at: new Date().toISOString(),
-    });
-    const updated = await ref.get();
-    const projectData = updated.data()!;
+    // Conditional update so two maintainers racing for the same project
+    // can't both win: only succeeds if the row is still unclaimed, already
+    // ours, or its claim has gone stale.
+    const staleBefore = new Date(Date.now() - CLAIM_TTL_MS).toISOString();
+    const { data, error } = await getSupabase()
+      .from("projects")
+      .update({ claimed_by: auth.userId, claimed_at: new Date().toISOString() })
+      .eq("numericId", project.numericId)
+      .or(`claimed_by.is.null,claimed_by.eq.${auth.userId},claimed_at.lt.${staleBefore}`)
+      .select("*");
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      return Response.json(
+        { error: "Project is already claimed by another maintainer" },
+        { status: 409 }
+      );
+    }
+    const projectData = data[0];
     return Response.json({ project: { ...projectData, id: projectData.numericId } });
   } catch (err) {
     console.error("Claim error:", err);
