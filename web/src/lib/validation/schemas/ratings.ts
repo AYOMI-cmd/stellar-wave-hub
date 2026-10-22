@@ -45,3 +45,14 @@ export const sortRatingQuerySchema = z.object({
   sort: z.enum(ratingSortOptions).default("helpful"),
 });
 
+export type CreateRatingInput = z.infer<typeof createRatingSchema>;
+
+export const ownerReplySchema = z.object({
+  owner_reply: z
+    .string()
+    .trim()
+    .min(1, "owner_reply is required")
+    .max(5000, "owner_reply is too long"),
+});
+
+export type OwnerReplyInput = z.infer<typeof ownerReplySchema>;
