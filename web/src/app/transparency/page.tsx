@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   ArrowUpRight,
@@ -45,10 +45,12 @@ const EMPTY_DATA: TransparencyData = {
   treasury: null,
 };
 
+const USDC_UNIT = BigInt(1_000_000);
+
 function formatUsdc(amount: bigint | null): string {
   if (amount === null) return "—";
-  const whole = amount / 1_000_000n;
-  const fraction = (amount % 1_000_000n)
+  const whole = amount / USDC_UNIT;
+  const fraction = (amount % USDC_UNIT)
     .toString()
     .padStart(6, "0")
     .replace(/0+$/, "");
@@ -91,88 +93,84 @@ function MetricCard({
   );
 }
 
-export default function TransparencyPage() {
-  const [data, setData] = useState(EMPTY_DATA);
-  const [loading, setLoading] = useState(ON_CHAIN_ENABLED);
-  const [hasLoaded, setHasLoaded] = useState(false);
-  const [errors, setErrors] = useState<string[]>([]);
+/** Read every public contract value; individual failures are reported, not thrown. */
+async function loadTransparencyData(): Promise<{data: TransparencyData; errors: string[]}> {
+  const nextErrors: string[] = [];
+  const [projectsResult, ratingFeeResult, registrationFeeResult, treasuryResult] =
+    await Promise.allSettled([
+      getProjectsOnChain(),
+      getRatingFee(),
+      getRegistrationFee(),
+      getTreasuryBalance(),
+    ]);
 
-  const refresh = useCallback(async () => {
-    if (!ON_CHAIN_ENABLED) {
-      setLoading(false);
-      setHasLoaded(true);
-      return;
-    }
+  const projects =
+    projectsResult.status === "fulfilled" ? projectsResult.value : null;
+  if (projectsResult.status === "rejected" || projects === null) {
+    nextErrors.push("project registry");
+  }
+  if (
+    ratingFeeResult.status === "rejected" ||
+    ratingFeeResult.value === null
+  )
+    nextErrors.push("rating fee");
+  if (
+    registrationFeeResult.status === "rejected" ||
+    registrationFeeResult.value === null
+  )
+    nextErrors.push("registration fee");
+  if (
+    treasuryResult.status === "rejected" ||
+    treasuryResult.value === null
+  )
+    nextErrors.push("treasury balance");
 
-    setLoading(true);
-    const nextErrors: string[] = [];
-    const [projectsResult, ratingFeeResult, registrationFeeResult, treasuryResult] =
-      await Promise.allSettled([
-        getProjectsOnChain(),
-        getRatingFee(),
-        getRegistrationFee(),
-        getTreasuryBalance(),
-      ]);
-
-    const projects =
-      projectsResult.status === "fulfilled" ? projectsResult.value : null;
-    if (projectsResult.status === "rejected" || projects === null) {
-      nextErrors.push("project registry");
-    }
-    if (
-      ratingFeeResult.status === "rejected" ||
-      ratingFeeResult.value === null
-    )
-      nextErrors.push("rating fee");
-    if (
-      registrationFeeResult.status === "rejected" ||
-      registrationFeeResult.value === null
-    )
-      nextErrors.push("registration fee");
-    if (
-      treasuryResult.status === "rejected" ||
-      treasuryResult.value === null
-    )
-      nextErrors.push("treasury balance");
-
-    let ratings: number | null = projects === null ? null : 0;
-    if (projects) {
-      const ratingResults = await Promise.allSettled(
-        projects.map((project) => getProjectRatingOnChain(project)),
-      );
-      let total = 0;
-      let ratingsAvailable = true;
-      for (const result of ratingResults) {
-        if (result.status === "rejected" || result.value === null) {
-          ratingsAvailable = false;
-          continue;
-        }
-        total += result.value.count;
+  let ratings: number | null = projects === null ? null : 0;
+  if (projects) {
+    const ratingResults = await Promise.allSettled(
+      projects.map((project) => getProjectRatingOnChain(project)),
+    );
+    let total = 0;
+    let ratingsAvailable = true;
+    for (const result of ratingResults) {
+      if (result.status === "rejected" || result.value === null) {
+        ratingsAvailable = false;
+        continue;
       }
-      ratings = ratingsAvailable ? total : null;
-      if (!ratingsAvailable) nextErrors.push("on-chain ratings");
+      total += result.value.count;
     }
+    ratings = ratingsAvailable ? total : null;
+    if (!ratingsAvailable) nextErrors.push("on-chain ratings");
+  }
 
-    setData({
-      projects,
-      ratings,
-      ratingFee:
-        ratingFeeResult.status === "fulfilled" ? ratingFeeResult.value : null,
-      registrationFee:
-        registrationFeeResult.status === "fulfilled"
-          ? registrationFeeResult.value
-          : null,
-      treasury:
-        treasuryResult.status === "fulfilled" ? treasuryResult.value : null,
-    });
-    setErrors(nextErrors);
-    setHasLoaded(true);
-    setLoading(false);
-  }, []);
+  return {
+    errors: nextErrors,
+    data: {
+    projects,
+    ratings,
+    ratingFee:
+      ratingFeeResult.status === "fulfilled" ? ratingFeeResult.value : null,
+    registrationFee:
+      registrationFeeResult.status === "fulfilled"
+        ? registrationFeeResult.value
+        : null,
+    treasury:
+      treasuryResult.status === "fulfilled" ? treasuryResult.value : null,
+    },
+  };
+}
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+export default function TransparencyPage() {
+  const query = useQuery({
+    queryKey: ["transparency"],
+    queryFn: loadTransparencyData,
+    enabled: ON_CHAIN_ENABLED,
+  });
+  const data = query.data?.data ?? EMPTY_DATA;
+  const errors = query.data?.errors ?? [];
+  const loading = ON_CHAIN_ENABLED && query.isFetching;
+  const hasLoaded = !ON_CHAIN_ENABLED || query.isFetched;
+  const refresh = () => query.refetch();
 
   const networkName = NETWORK === "mainnet" ? "Stellar Mainnet" : "Stellar Testnet";
 
