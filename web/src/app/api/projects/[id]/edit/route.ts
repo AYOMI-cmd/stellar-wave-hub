@@ -1,4 +1,5 @@
 import { projectsCol } from "@/lib/db";
+import { getSupabase } from "@/lib/firebase";
 import { getAuthUser, hasMinRole } from "@/lib/auth";
 import { parseJsonBody } from "@/lib/validation/parse-body";
 import { editProjectSchema } from "@/lib/validation/schemas/projects";
@@ -38,16 +39,30 @@ export async function PUT(
   try {
     const body = parsed.data;
     const allowed = ["name", "description", "category", "stellar_account_id", "stellar_contract_id", "stellar_network", "tags", "website_url", "github_url", "github_repos", "logo_url", "research_images"] as const;
-    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    const updates: Record<string, unknown> = {
+      updated_at: new Date(Math.max(Date.now(), Date.parse(project.updated_at) + 1)).toISOString(),
+    };
 
     for (const key of allowed) {
       if (body[key] !== undefined) updates[key] = body[key];
     }
 
-    await ref.update(updates);
+    if (body.stellar_account_id !== undefined && body.stellar_account_id !== project.stellar_account_id) {
+      updates.owner_verified_at = null;
+      updates.owner_verified_address = null;
+    }
+
+    // Compare the version read above so a concurrent verification or edit
+    // cannot leave verification attached to a different account.
+    const { data: updated, error: updateError } = await getSupabase().from("projects")
+      .update(updates).eq("numericId", project.numericId)
+      .eq("updated_at", project.updated_at).select("*").maybeSingle();
+    if (updateError) throw updateError;
+    if (!updated) {
+      return Response.json({ error: "Project changed while saving. Please reload and try again." }, { status: 409 });
+    }
     revalidatePublicProjectCache();
-    const updated = await ref.get();
-    return Response.json({ project: { ...updated.data(), id: updated.data()!.numericId } });
+    return Response.json({ project: { ...updated, id: updated.numericId } });
   } catch (err) {
     console.error("Edit project error:", err);
     return Response.json({ error: "Internal server error" }, { status: 500 });
