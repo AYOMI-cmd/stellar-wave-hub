@@ -484,7 +484,7 @@ Replace `YOUR_GITHUB_USERNAME`, `Your Name`, `YOUR_X_HANDLE`, and the role/proje
       <br />
       <a href="https://github.com/mopxam-art"><img src="https://img.shields.io/badge/-GitHub-181717?logo=github&logoColor=white&style=flat-square" alt="GitHub" /></a>
       <br />
-      <sub>Developer — .env.example Documentation</sub>
+      <sub>Developer — JSON-LD Structured Data</sub>
     </td>
     <!-- Add your <td> above this line -->
   </tr>
