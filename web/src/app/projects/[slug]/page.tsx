@@ -21,6 +21,7 @@ import {
 import Link from "next/link";
 import {apiFetch, isApiFetchError} from "@/lib/api-fetch";
 import {useRetryCountdown} from "@/lib/use-retry-countdown";
+import {notFound} from "next/navigation";
 import Image from "next/image";
 import {MAX_REVIEW_TEXT_LENGTH} from "@/lib/validation/constants";
 
@@ -335,6 +336,7 @@ export default function ProjectDetailPage({
 	const [financials, setFinancials] = useState<FinancialSummary | null>(null);
 	const [githubStats, setGithubStats] = useState<GithubStats | null>(null);
 	const [loading, setLoading] = useState(true);
+	const [missing, setMissing] = useState(false);
 	const [activeTab, setActiveTab] = useState<
 		"overview" | "ratings" | "financials"
 	>("overview");
@@ -420,7 +422,10 @@ export default function ProjectDetailPage({
 		fetch(`/api/projects/${slug}?sort=${reviewSort}`, {
 			headers: token ? {Authorization: `Bearer ${token}`} : undefined,
 		})
-			.then((r) => r.json())
+			.then((r) => {
+				if (r.status === 404 && !cancelled) setMissing(true);
+				return r.json();
+			})
 			.then((data) => {
 				if (cancelled) return;
 				setProject(data.project);
@@ -783,6 +788,9 @@ export default function ProjectDetailPage({
 			</div>
 		);
 	}
+
+	// Unknown slug — render the segment's branded not-found.tsx
+	if (missing) notFound();
 
 	if (!project) {
 		return (
