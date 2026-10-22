@@ -36,15 +36,6 @@ import {
 	isRegisteredOnChain,
 	type OnChainRating,
 } from "@/lib/ratingContract";
-import {
-	AlertDialog,
-	AlertDialogContent,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogCancel,
-} from "@/components/ui/alert-dialog";
 import {Textarea} from "@/components/ui/textarea";
 import {PROJECT_REPORT_REASONS} from "@/lib/validation/schemas/reports";
 
