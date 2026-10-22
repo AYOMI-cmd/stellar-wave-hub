@@ -5,7 +5,11 @@ import {createProjectSchema} from "@/lib/validation/schemas/projects";
 import {publicProjectCacheHeaders} from "@/lib/public-project-cache";
 import slugify from "slugify";
 import {getSupabase} from "@/lib/firebase";
+import {checkRateLimit, getClientIp, rateLimitExceededResponse} from "@/lib/rate-limit";
 export const dynamic = "force-dynamic";
+
+// Rate limit: 5 project submissions per hour per user (falls back to IP when anonymous)
+const SUBMIT_RATE_LIMIT = {limit: 5, windowMs: 60 * 60_000};
 
 export async function GET(request: Request) {
 	try {
@@ -176,6 +180,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
 	const auth = getAuthUser(request);
+	const rateLimitKey = auth
+		? `projects-submit:user:${auth.userId}`
+		: `projects-submit:ip:${getClientIp(request)}`;
+	const rl = checkRateLimit(rateLimitKey, SUBMIT_RATE_LIMIT);
+	if (!rl.allowed) return rateLimitExceededResponse(rl.retryAfterSeconds);
+
 	if (!auth) return Response.json({error: "Unauthorized"}, {status: 401});
 
 	const parsed = await parseJsonBody(request, createProjectSchema);
