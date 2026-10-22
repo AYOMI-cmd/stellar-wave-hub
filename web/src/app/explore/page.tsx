@@ -186,8 +186,13 @@ function ExplorePageContent() {
 			.then((r) => (r.ok ? r.json() : {spotlights: []}))
 			.then((data) => {
 				if (cancelled) return;
-				const first: Project | undefined = data.spotlights?.[0];
-				setSponsored(first ? {...first, _isSponsored: true} : null);
+				const spotlights: Project[] = data.spotlights ?? [];
+				// No active spotlight: show organic results only.
+				if (spotlights.length === 0) {
+					setSponsored(null);
+					return;
+				}
+				setSponsored({...spotlights[0], _isSponsored: true});
 			})
 			.catch(() => {
 				if (!cancelled) setSponsored(null);
