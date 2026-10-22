@@ -4,10 +4,12 @@ export const dynamic = "force-dynamic";
 
 type ModeratorStats = {
   actor_id: number;
+  username: string | null;
   approvals: number;
   rejections: number;
   delists: number;
   total_actions: number;
+  last_action_at: string | null;
 };
 
 /**
@@ -45,7 +47,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    let query = getSupabase().from("moderation_log").select("actor_id, action");
+    let query = getSupabase().from("moderation_log").select("actor_id, action, created_at");
     if (meOnly) query = query.eq("actor_id", auth.userId);
     if (since) query = query.gte("created_at", since);
 
@@ -56,7 +58,15 @@ export async function GET(request: Request) {
     const statsFor = (actorId: number) => {
       let row = byActor.get(actorId);
       if (!row) {
-        row = { actor_id: actorId, approvals: 0, rejections: 0, delists: 0, total_actions: 0 };
+        row = {
+          actor_id: actorId,
+          username: null,
+          approvals: 0,
+          rejections: 0,
+          delists: 0,
+          total_actions: 0,
+          last_action_at: null,
+        };
         byActor.set(actorId, row);
       }
       return row;
@@ -66,10 +76,25 @@ export async function GET(request: Request) {
     for (const entry of data ?? []) {
       const row = statsFor(Number(entry.actor_id));
       row.total_actions++;
+      if (!row.last_action_at || entry.created_at > row.last_action_at) {
+        row.last_action_at = entry.created_at;
+      }
       // A feature is an approval that also sets the spotlight.
       if (entry.action === "approve" || entry.action === "feature") row.approvals++;
       else if (entry.action === "reject") row.rejections++;
       else if (entry.action === "delist") row.delists++;
+    }
+
+    if (byActor.size > 0) {
+      const { data: users, error: usersError } = await getSupabase()
+        .from("users")
+        .select("numericId, username")
+        .in("numericId", [...byActor.keys()]);
+      if (usersError) throw usersError;
+      for (const u of users ?? []) {
+        const row = byActor.get(Number(u.numericId));
+        if (row) row.username = u.username ?? null;
+      }
     }
 
     const stats = [...byActor.values()].sort((a, b) => b.total_actions - a.total_actions);

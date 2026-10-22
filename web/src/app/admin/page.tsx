@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { hasMinRole } from "@/lib/roles";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -689,6 +689,164 @@ const REJECT_REASON_TEMPLATES = [
     text: "",
   },
 ] as const;
+
+// ─── Moderators leaderboard ──────────────────────────────────────────
+
+interface ModeratorStats {
+  actor_id: number;
+  username: string | null;
+  approvals: number;
+  rejections: number;
+  delists: number;
+  total_actions: number;
+  last_action_at: string | null;
+}
+
+type ModeratorSortKey = "username" | "approvals" | "rejections" | "delists" | "total_actions" | "last_action_at";
+type ModeratorPeriod = "7d" | "30d" | "all";
+
+const MODERATOR_PERIODS: { value: ModeratorPeriod; label: string; days: number | null }[] = [
+  { value: "7d", label: "7 days", days: 7 },
+  { value: "30d", label: "30 days", days: 30 },
+  { value: "all", label: "All time", days: null },
+];
+
+const MODERATOR_COLUMNS: { key: ModeratorSortKey; label: string; numeric: boolean }[] = [
+  { key: "username", label: "Moderator", numeric: false },
+  { key: "approvals", label: "Approvals", numeric: true },
+  { key: "rejections", label: "Rejections", numeric: true },
+  { key: "delists", label: "Delists", numeric: true },
+  { key: "total_actions", label: "Total", numeric: true },
+  { key: "last_action_at", label: "Last action", numeric: false },
+];
+
+function ModeratorsTab({ token }: { token: string | null }) {
+  const [period, setPeriod] = useState<ModeratorPeriod>("30d");
+  const [sortKey, setSortKey] = useState<ModeratorSortKey>("total_actions");
+  const [sortDesc, setSortDesc] = useState(true);
+
+  const statsQuery = useQuery<ModeratorStats[]>({
+    queryKey: ["admin-moderator-stats", period],
+    queryFn: async () => {
+      const days = MODERATOR_PERIODS.find((p) => p.value === period)?.days ?? null;
+      const params = new URLSearchParams();
+      if (days !== null) {
+        params.set("since", new Date(Date.now() - days * 86_400_000).toISOString());
+      }
+      const res = await fetch(`/api/admin/maintainer-stats?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load moderator stats");
+      return data.stats || [];
+    },
+    enabled: !!token,
+  });
+
+  const rows = useMemo(() => {
+    const sorted = [...(statsQuery.data ?? [])];
+    sorted.sort((a, b) => {
+      const av = a[sortKey] ?? "";
+      const bv = b[sortKey] ?? "";
+      const cmp = typeof av === "number" && typeof bv === "number"
+        ? av - bv
+        : String(av).localeCompare(String(bv));
+      return sortDesc ? -cmp : cmp;
+    });
+    return sorted;
+  }, [statsQuery.data, sortKey, sortDesc]);
+
+  const toggleSort = (key: ModeratorSortKey) => {
+    if (key === sortKey) {
+      setSortDesc((d) => !d);
+    } else {
+      setSortKey(key);
+      setSortDesc(key !== "username");
+    }
+  };
+
+  return (
+    <section className="space-y-5">
+      <div className="glass rounded-2xl p-5 sm:p-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-starlight">Moderator activity</h2>
+          <p className="mt-1 text-sm text-ash">Ranked by moderation actions from the audit log.</p>
+        </div>
+        <div className="flex gap-1 rounded-xl bg-stardust/40 p-1" role="group" aria-label="Time period">
+          {MODERATOR_PERIODS.map((p) => (
+            <button
+              key={p.value}
+              type="button"
+              onClick={() => setPeriod(p.value)}
+              aria-pressed={period === p.value}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                period === p.value ? "bg-nova/20 text-nova-bright" : "text-ash hover:text-moonlight"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="glass overflow-hidden rounded-2xl">
+        {statsQuery.isLoading ? (
+          <div className="p-6"><Skeletons count={3} /></div>
+        ) : statsQuery.isError ? (
+          <div className="px-6 py-12 text-center">
+            <p role="alert" className="text-sm text-supernova">{statsQuery.error.message}</p>
+            <button type="button" onClick={() => statsQuery.refetch()} className="btn-ghost mt-4 text-sm">
+              Try again
+            </button>
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <p className="font-medium text-moonlight">No moderation activity yet</p>
+            <p className="mt-1 text-sm text-ash">Approvals, rejections and delists will show up here.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[40rem] text-left">
+              <thead className="border-b border-dust/25 bg-stardust/35">
+                <tr className="text-[11px] uppercase tracking-[0.16em] text-ash">
+                  <th scope="col" className="px-4 py-3 font-medium">#</th>
+                  {MODERATOR_COLUMNS.map((col) => (
+                    <th
+                      key={col.key}
+                      scope="col"
+                      aria-sort={sortKey === col.key ? (sortDesc ? "descending" : "ascending") : "none"}
+                      className={`px-4 py-3 font-medium ${col.numeric ? "text-right" : ""}`}
+                    >
+                      <button type="button" onClick={() => toggleSort(col.key)} className="uppercase tracking-[0.16em] hover:text-moonlight">
+                        {col.label}
+                        {sortKey === col.key ? (sortDesc ? " ↓" : " ↑") : ""}
+                      </button>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-dust/15">
+                {rows.map((row, idx) => (
+                  <tr key={row.actor_id} className="transition-colors hover:bg-stardust/25">
+                    <td className="px-4 py-3 text-sm text-ash">{idx + 1}</td>
+                    <td className="px-4 py-3 font-medium text-moonlight">{row.username ?? `User #${row.actor_id}`}</td>
+                    <td className="px-4 py-3 text-right text-sm text-moonlight">{row.approvals}</td>
+                    <td className="px-4 py-3 text-right text-sm text-moonlight">{row.rejections}</td>
+                    <td className="px-4 py-3 text-right text-sm text-moonlight">{row.delists}</td>
+                    <td className="px-4 py-3 text-right text-sm font-semibold text-starlight">{row.total_actions}</td>
+                    <td className="px-4 py-3 text-sm text-ash">
+                      {row.last_action_at ? new Date(row.last_action_at).toLocaleString() : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
 
 function RejectDialog({
   project,
@@ -1925,6 +2083,7 @@ export default function AdminPage() {
             </TabsTrigger>
             <TabsTrigger value="promos">Promo Codes</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="moderators">Moderators</TabsTrigger>
           </TabsList>
 
           {/* ── Pending tab ── */}
@@ -2076,6 +2235,10 @@ export default function AdminPage() {
 
           <TabsContent value="users">
             <UsersTab token={token} currentUserId={user.id} />
+          </TabsContent>
+
+          <TabsContent value="moderators">
+            <ModeratorsTab token={token} />
           </TabsContent>
         </Tabs>
       </div>
