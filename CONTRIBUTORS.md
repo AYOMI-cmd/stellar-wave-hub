@@ -326,7 +326,7 @@ Replace `YOUR_GITHUB_USERNAME`, `Your Name`, `YOUR_X_HANDLE`, and the role/proje
 				alt="GitHub"
 		/></a>
 		<br />
-		<sub>Researcher — Fundable Protocol</sub>
+		<sub>Researcher — Sanctifier</sub>
 	</div>
 
 	<!-- Add your <div> above this line -->
@@ -496,7 +496,7 @@ Replace `YOUR_GITHUB_USERNAME`, `Your Name`, `YOUR_X_HANDLE`, and the role/proje
       <br />
       <a href="https://github.com/OG-wura"><img src="https://img.shields.io/badge/-GitHub-181717?logo=github&logoColor=white&style=flat-square" alt="GitHub" /></a>
       <br />
-      <sub>Researcher — Fundable Protocol</sub>
+      <sub>Researcher — SafeTrust</sub>
     </td>
 <td align="center">
       <a href="https://github.com/dee-john">
