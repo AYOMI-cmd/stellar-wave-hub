@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -18,6 +18,30 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Award,
+  FileCheck2,
+  FolderPlus,
+  Link2,
+  Sparkles,
+} from "lucide-react";
+import type { Achievement } from "@/lib/achievements";
+
+const ACHIEVEMENT_ICONS = {
+  "first-review": FileCheck2,
+  "ten-reviews": Award,
+  "first-project": FolderPlus,
+  "on-chain-reviewer": Link2,
+  "early-supporter": Sparkles,
+} as const;
+
+const ACHIEVEMENT_ACCENTS = {
+  "first-review": "text-plasma-bright bg-plasma/10 border-plasma/20",
+  "ten-reviews": "text-solar-bright bg-solar/10 border-solar/20",
+  "first-project": "text-aurora-bright bg-aurora/10 border-aurora/20",
+  "on-chain-reviewer": "text-nova-bright bg-nova/10 border-nova/20",
+  "early-supporter": "text-rose-300 bg-rose-400/10 border-rose-300/20",
+} as const;
 
 const profileSchema = z.object({
   username: z
@@ -92,6 +116,42 @@ export default function ProfilePage() {
   const [walletError, setWalletError] = useState("");
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState("");
+
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [achievementsLoading, setAchievementsLoading] = useState(true);
+  const [achievementsError, setAchievementsError] = useState("");
+
+  useEffect(() => {
+    if (!user || !token) {
+      setAchievements([]);
+      setAchievementsLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setAchievementsLoading(true);
+    setAchievementsError("");
+    fetch("/api/achievements/me", {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to load achievements");
+        setAchievements(data.achievements);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setAchievementsError(
+          err instanceof Error ? err.message : "Failed to load achievements",
+        );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setAchievementsLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [token, user]);
 
   const form = useForm<ProfileValues>({
     resolver: zodResolver(profileSchema),
@@ -302,6 +362,74 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* Achievement badges */}
+      <section
+        aria-labelledby="achievements-heading"
+        className="glass rounded-2xl p-6 mb-6 animate-in animate-in-delay-1"
+      >
+        <div className="flex items-center justify-between gap-3 mb-5">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-plasma-bright">
+              Community milestones
+            </p>
+            <h2 id="achievements-heading" className="font-semibold text-lg text-starlight mt-1">
+              Achievements
+            </h2>
+          </div>
+          {!achievementsLoading && (
+            <span className="rounded-full border border-dust/30 bg-stardust/50 px-3 py-1 text-xs text-ash">
+              {achievements.filter((achievement) => achievement.earned).length} / {achievements.length} earned
+            </span>
+          )}
+        </div>
+
+        {achievementsError ? (
+          <p role="alert" className="rounded-xl border border-supernova/20 bg-supernova/10 px-4 py-3 text-sm text-supernova">
+            {achievementsError}
+          </p>
+        ) : achievementsLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" aria-label="Loading achievements">
+            {[0, 1, 2, 3].map((item) => (
+              <div key={item} className="h-24 rounded-xl border border-dust/20 bg-stardust/30 animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {achievements.map((achievement) => {
+              const Icon = ACHIEVEMENT_ICONS[achievement.id];
+              return (
+                <article
+                  key={achievement.id}
+                  className={`flex items-start gap-3 rounded-xl border p-4 transition-colors ${
+                    achievement.earned
+                      ? "border-aurora/20 bg-aurora/[0.04]"
+                      : "border-dust/20 bg-stardust/20 opacity-65"
+                  }`}
+                  aria-label={`${achievement.name}: ${achievement.earned ? "earned" : "not yet earned"}`}
+                >
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${ACHIEVEMENT_ACCENTS[achievement.id]}`}>
+                    <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold text-starlight">
+                      {achievement.name}
+                    </h3>
+                    <p className="mt-0.5 text-xs leading-relaxed text-ash">
+                      {achievement.description}
+                    </p>
+                    <p className={`mt-2 text-[10px] font-medium uppercase tracking-wider ${
+                      achievement.earned ? "text-aurora-bright" : "text-ash/70"
+                    }`}>
+                      {achievement.earned ? "Earned" : achievement.progress}
+                    </p>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       {/* Wallet Section */}
       <div className="glass rounded-2xl p-6 mb-6 animate-in animate-in-delay-1">
