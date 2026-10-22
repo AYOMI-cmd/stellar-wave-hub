@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect, useState, use} from "react";
+import {useEffect, useState, use, type ReactNode} from "react";
 import {useAuth} from "@/context/AuthContext";
 import StarRating from "@/components/StarRating";
 import EmbedSnippet from "@/components/EmbedSnippet";
@@ -9,6 +9,7 @@ import Link from "next/link";
 import {apiFetch, isApiFetchError} from "@/lib/api-fetch";
 import {useRetryCountdown} from "@/lib/use-retry-countdown";
 import Image from "next/image";
+import {MAX_REVIEW_TEXT_LENGTH} from "@/lib/validation/constants";
 
 import {
 	ON_CHAIN_ENABLED,
@@ -102,6 +103,173 @@ function formatFee(stroops: bigint | null): string {
 	if (stroops === null) return "0.1 USDC";
 	const usdc = Number(stroops) / 1_000_000;
 	return `${usdc.toFixed(usdc < 0.01 ? 6 : 2)} USDC`;
+}
+
+function renderInlineMarkdown(text: string): ReactNode[] {
+	const nodes: ReactNode[] = [];
+	const pattern =
+		/\[([^\]]+)\]\(([^)\s]+)\)|`([^`]+)`|\*\*([^*]+)\*\*|__([^_]+)__|~~([^~]+)~~|\*([^*]+)\*|_([^_]+)_/g;
+	let lastIndex = 0;
+	let key = 0;
+
+	for (const match of text.matchAll(pattern)) {
+		const index = match.index;
+		nodes.push(text.slice(lastIndex, index));
+		const [, linkText, href, code, boldAsterisk, boldUnderscore, strike, italicAsterisk, italicUnderscore] = match;
+
+		if (linkText && href) {
+			const safeHref = /^https?:\/\//i.test(href) ? href : null;
+
+			nodes.push(
+				safeHref ? (
+					<a
+						key={key++}
+						href={safeHref}
+						target="_blank"
+						rel="noopener noreferrer nofollow"
+						className="text-plasma-bright underline underline-offset-2"
+					>
+						{linkText}
+					</a>
+				) : (
+					match[0]
+				),
+			);
+		} else if (code) {
+			nodes.push(
+				<code key={key++} className="rounded bg-white/10 px-1 py-0.5 font-mono text-xs">
+					{code}
+				</code>,
+			);
+		} else if (boldAsterisk || boldUnderscore) {
+			nodes.push(<strong key={key++}>{boldAsterisk || boldUnderscore}</strong>);
+		} else if (strike) {
+			nodes.push(<del key={key++}>{strike}</del>);
+		} else if (italicAsterisk || italicUnderscore) {
+			nodes.push(<em key={key++}>{italicAsterisk || italicUnderscore}</em>);
+		}
+
+		lastIndex = index + match[0].length;
+	}
+
+	nodes.push(text.slice(lastIndex));
+	return nodes;
+}
+
+function renderReviewMarkdown(markdown: string): ReactNode {
+	const lines = markdown.split(/\r?\n/);
+	const blocks: ReactNode[] = [];
+	let index = 0;
+
+	while (index < lines.length) {
+		const line = lines[index];
+		if (!line.trim()) {
+			index++;
+			continue;
+		}
+
+		if (/^\s*```/.test(line)) {
+			const codeLines: string[] = [];
+			index++;
+			while (index < lines.length && !/^\s*```/.test(lines[index])) {
+				codeLines.push(lines[index++]);
+			}
+			if (index < lines.length) index++;
+			blocks.push(
+				<pre key={blocks.length} className="overflow-x-auto rounded-lg bg-black/20 p-3">
+					<code>{codeLines.join("\n")}</code>
+				</pre>,
+			);
+			continue;
+		}
+
+		const heading = /^(#{1,6})\s+(.+)$/.exec(line);
+		if (heading) {
+			const Heading = (
+				["h1", "h2", "h3", "h4", "h5", "h6"] as const
+			)[heading[1].length - 1];
+			blocks.push(
+				<Heading key={blocks.length} className="font-semibold text-starlight">
+					{renderInlineMarkdown(heading[2])}
+				</Heading>,
+			);
+			index++;
+			continue;
+		}
+
+		if (/^\s*>/.test(line)) {
+			const quoteLines: string[] = [];
+			while (index < lines.length && /^\s*>/.test(lines[index])) {
+				quoteLines.push(lines[index++].replace(/^\s*>\s?/, ""));
+			}
+			blocks.push(
+				<blockquote
+					key={blocks.length}
+					className="border-l-2 border-plasma/50 pl-3 text-moonlight/70"
+				>
+					{quoteLines.map((quoteLine, lineIndex) => (
+						<span key={lineIndex}>
+							{lineIndex > 0 && <br />}
+							{renderInlineMarkdown(quoteLine)}
+						</span>
+					))}
+				</blockquote>,
+			);
+			continue;
+		}
+
+		const unordered = /^\s*[-*+]\s+(.+)$/.test(line);
+		const ordered = /^\s*\d+\.\s+(.+)$/.test(line);
+		if (unordered || ordered) {
+			const List = ordered ? "ol" : "ul";
+			const items: string[] = [];
+			const itemPattern = ordered
+				? /^\s*\d+\.\s+(.+)$/
+				: /^\s*[-*+]\s+(.+)$/;
+			while (index < lines.length) {
+				const item = itemPattern.exec(lines[index]);
+				if (!item) break;
+				items.push(item[1]);
+				index++;
+			}
+			blocks.push(
+				<List
+					key={blocks.length}
+					className={ordered ? "list-decimal pl-5" : "list-disc pl-5"}
+				>
+					{items.map((item, itemIndex) => (
+						<li key={itemIndex}>{renderInlineMarkdown(item)}</li>
+					))}
+				</List>,
+			);
+			continue;
+		}
+
+		const paragraph: string[] = [];
+		while (
+			index < lines.length &&
+			lines[index].trim() &&
+			!/^\s*```/.test(lines[index]) &&
+			!/^(#{1,6})\s+/.test(lines[index]) &&
+			!/^\s*>/.test(lines[index]) &&
+			!/^\s*[-*+]\s+/.test(lines[index]) &&
+			!/^\s*\d+\.\s+/.test(lines[index])
+		) {
+			paragraph.push(lines[index++]);
+		}
+		blocks.push(
+			<p key={blocks.length}>
+				{paragraph.map((paragraphLine, lineIndex) => (
+					<span key={lineIndex}>
+						{lineIndex > 0 && <br />}
+						{renderInlineMarkdown(paragraphLine)}
+					</span>
+				))}
+			</p>,
+		);
+	}
+
+	return <div className="space-y-2">{blocks}</div>;
 }
 
 export default function ProjectDetailPage({
@@ -772,18 +940,31 @@ export default function ProjectDetailPage({
 									onChange={(v) => setRatingForm((p) => ({...p, usability_score: v}))}
 								/>
 								<div>
-									<label className="block text-sm font-medium text-moonlight mb-2">
+									<label
+										htmlFor="review-text"
+										className="block text-sm font-medium text-moonlight mb-2"
+									>
 										Review (optional)
 									</label>
 									<textarea
+										id="review-text"
 										rows={3}
 										className="input-field resize-none"
 										placeholder="Share your thoughts..."
 										value={ratingForm.review_text}
+										maxLength={MAX_REVIEW_TEXT_LENGTH}
+										aria-describedby="review-text-counter"
 										onChange={(e) =>
 											setRatingForm((p) => ({...p, review_text: e.target.value}))
 										}
 									/>
+									<p
+										id="review-text-counter"
+										className="mt-1 text-right text-xs text-ash"
+										aria-live="polite"
+									>
+										{ratingForm.review_text.length}/{MAX_REVIEW_TEXT_LENGTH} characters
+									</p>
 								</div>
 								<button
 									type="submit"
@@ -846,9 +1027,9 @@ export default function ProjectDetailPage({
 											</div>
 										</div>
 										{rating.review_text && (
-											<p className="text-sm text-moonlight/80 leading-relaxed">
-												{rating.review_text}
-											</p>
+											<div className="text-sm text-moonlight/80 leading-relaxed">
+												{renderReviewMarkdown(rating.review_text)}
+											</div>
 										)}
 										<div className="flex gap-4 mt-3 text-xs text-ash flex-wrap items-center">
 											{rating.purpose_score && (

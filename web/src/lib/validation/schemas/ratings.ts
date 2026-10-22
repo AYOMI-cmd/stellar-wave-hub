@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_REVIEW_TEXT_LENGTH } from "../constants";
 
 const optionalSubScore = z
   .union([z.number().int().min(1).max(5), z.literal(0), z.null()])
@@ -17,7 +18,14 @@ export const createRatingSchema = z.object({
   purpose_score: optionalSubScore,
   innovation_score: optionalSubScore,
   usability_score: optionalSubScore,
-  review_text: z.string().nullable().optional(),
+  review_text: z
+    .string()
+    .max(
+      MAX_REVIEW_TEXT_LENGTH,
+      `Review must be ${MAX_REVIEW_TEXT_LENGTH} characters or fewer`,
+    )
+    .nullable()
+    .optional(),
   tx_hash: z.string().nullable().optional(),
 });
 
