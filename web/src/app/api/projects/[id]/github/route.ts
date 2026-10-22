@@ -1,15 +1,9 @@
 import { projectsCol } from "@/lib/db";
+import { parseGithubRepo } from "@/lib/github";
 export const dynamic = "force-dynamic";
 
 const CACHE_SECONDS = 60 * 60;
 const GITHUB_TIMEOUT_MS = 5_000;
-
-/** Extract "owner/repo" from a GitHub URL, or null if it isn't one. */
-export function parseGithubRepo(url: unknown): string | null {
-  if (typeof url !== "string") return null;
-  const match = /^https?:\/\/(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?(?:[?#].*)?$/i.exec(url.trim());
-  return match ? `${match[1]}/${match[2]}` : null;
-}
 
 // GET /api/projects/[id]/github — repo stats for the project's GitHub URL, cached for 1 hour.
 export async function GET(
