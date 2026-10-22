@@ -121,8 +121,9 @@ async function listProjects(rows, search = "sort=new-this-week&limit=6") {
 }
 
 function renderHome(newProjects, loading = false) {
-  // Positional useState mocks: featured, trending, trendingFallback, newThisWeek, loading.
-  const states = [[], [], false, newProjects, loading];
+  // Positional useState mocks, in declaration order in app/page.tsx:
+  // spotlights, trending, trendingFallback, newThisWeek, featured, loading.
+  const states = [[], [], false, newProjects, [], loading];
   const effects = [];
   const requests = [];
   let stateIndex = 0;
@@ -134,6 +135,7 @@ function renderHome(newProjects, loading = false) {
     },
     "react/jsx-runtime": jsxRuntime,
     "next/link": ({ children, href }) => React.createElement("a", { href }, children),
+    "@/components/FeaturedCarousel": () => null,
     "@/components/ProjectCard": ({ project: item, badge }) =>
       React.createElement("article", { "data-project-id": item.numericId }, `${badge.label}: ${item.name}`),
   }, {
