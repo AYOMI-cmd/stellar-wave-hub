@@ -52,17 +52,10 @@ npm install
 #### Step 2: Create a Supabase project and apply the migrations
 
 1. In Supabase, create a new project.
-2. Open **SQL Editor** and run these files from `web/data/supabase/`, in this order, one at a time:
+2. Open **SQL Editor** and run the files in `web/data/supabase/` one at a time, in this order:
 
    1. `schema.sql`
-   2. `002_add_profile_and_research_fields.sql`
-   3. `003_add_github_repos.sql`
-   4. `004_add_rating_tx_hash.sql`
-   5. `005_add_maintainer_role.sql`
-   6. `005_add_substantial_flag.sql`
-   7. `006_add_submission_notes.sql`
-   8. `007_add_promo_codes.sql`
-   9. `008_add_featured_tx_hash.sql`
+   2. Every numbered migration in ascending filename order: first the short-prefixed ones (`002_…` through `008_…`), then the timestamp-prefixed ones (`YYYYMMDDHHMM_…`). `ls web/data/supabase` lists them in the right order.
 
    > `schema.sql` already restricts `users.role` to `contributor`, `maintainer` or `admin`. If `005_add_maintainer_role.sql` fails with `constraint "users_role_check" already exists`, that is harmless: skip it and continue.
 
@@ -70,7 +63,7 @@ npm install
 
 #### Step 3: Set environment variables
 
-There is no committed `.env.example`, so create `web/.env.local` yourself:
+Copy `web/.env.example` to `web/.env.local` and fill in at least these values:
 
 ```bash
 # Supabase: Project Settings -> API
@@ -78,7 +71,7 @@ SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 # Signs login tokens. Use any long random string.
-JWT_SECRET=replace-with-a-long-random-string
+JWT_SECRET=replace-with-a-random-string-of-at-least-32-chars
 
 # Stellar testnet
 STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
@@ -96,7 +89,7 @@ Optional variables:
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Used by the sitemap only |
 | `CRON_SECRET` | Protects the `/api/cron/snapshots` route |
 
-> Always set your own `JWT_SECRET`. If it is missing, the app falls back to a publicly known development secret.
+> Always set your own `JWT_SECRET`. In development a missing secret falls back to a publicly known value; production builds refuse to start unless it is set to at least 32 characters.
 
 Make sure `.env.local` is never committed: `git check-ignore web/.env.local` should print the path.
 
