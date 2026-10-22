@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useQuery } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@/context/AuthContext";
@@ -117,41 +118,22 @@ export default function ProfilePage() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState("");
 
-  const [achievements, setAchievements] = useState<Achievement[]>([]);
-  const [achievementsLoading, setAchievementsLoading] = useState(true);
-  const [achievementsError, setAchievementsError] = useState("");
-
-  useEffect(() => {
-    if (!user || !token) {
-      setAchievements([]);
-      setAchievementsLoading(false);
-      return;
-    }
-
-    const controller = new AbortController();
-    setAchievementsLoading(true);
-    setAchievementsError("");
-    fetch("/api/achievements/me", {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to load achievements");
-        setAchievements(data.achievements);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setAchievementsError(
-          err instanceof Error ? err.message : "Failed to load achievements",
-        );
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setAchievementsLoading(false);
+  const achievementsQuery = useQuery<Achievement[]>({
+    queryKey: ["achievements", user?.id],
+    queryFn: async ({ signal }) => {
+      const res = await fetch("/api/achievements/me", {
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
       });
-
-    return () => controller.abort();
-  }, [token, user]);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load achievements");
+      return data.achievements;
+    },
+    enabled: !!user && !!token,
+  });
+  const achievements = achievementsQuery.data ?? [];
+  const achievementsLoading = achievementsQuery.isLoading;
+  const achievementsError = achievementsQuery.error?.message ?? "";
 
   const form = useForm<ProfileValues>({
     resolver: zodResolver(profileSchema),

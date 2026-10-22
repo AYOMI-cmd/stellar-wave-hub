@@ -18,7 +18,10 @@ export async function GET(request: Request) {
     const achievements = getAchievements({
       userId: auth.userId,
       projectCount: projectsSnap.docs.length,
-      reviewCount: ratings.length,
+      // A review is a rating with written text (same rule as XP in lib/xp.ts).
+      reviewCount: ratings.filter(
+        (rating) => typeof rating.review_text === "string" && rating.review_text.trim().length > 0,
+      ).length,
       hasOnChainReview: ratings.some(
         (rating) => typeof rating.tx_hash === "string" && rating.tx_hash.length > 0,
       ),
