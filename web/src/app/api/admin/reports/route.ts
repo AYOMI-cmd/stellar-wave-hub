@@ -1,5 +1,7 @@
 import { getAuthUser, hasMinRole } from "@/lib/auth";
 import { getSupabase } from "@/lib/firebase";
+import { parseJsonBody } from "@/lib/validation/parse-body";
+import { updateReportStatusSchema } from "@/lib/validation/schemas/reports";
 
 export const dynamic = "force-dynamic";
 
@@ -150,20 +152,11 @@ export async function PATCH(request: Request) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  try {
-    const body = await request.json();
-    const id = Number(body?.id);
-    const status = body?.status;
+  const parsed = await parseJsonBody(request, updateReportStatusSchema);
+  if (!parsed.success) return parsed.response;
+  const { id, status } = parsed.data;
 
-    if (!Number.isSafeInteger(id) || id <= 0) {
-      return Response.json({ error: "A valid report ID is required" }, { status: 400 });
-    }
-    if (status !== "resolved" && status !== "dismissed") {
-      return Response.json(
-        { error: "Status must be resolved or dismissed" },
-        { status: 400 },
-      );
-    }
+  try {
 
     const supabase = getSupabase();
     const { data, error } = await supabase
@@ -188,9 +181,6 @@ export async function PATCH(request: Request) {
 
     return Response.json({ report: data });
   } catch (err) {
-    if (err instanceof SyntaxError) {
-      return Response.json({ error: "Invalid JSON body" }, { status: 400 });
-    }
     console.error("Update admin report error:", err);
     return Response.json({ error: "Internal server error" }, { status: 500 });
   }

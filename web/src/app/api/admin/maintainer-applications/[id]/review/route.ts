@@ -1,5 +1,7 @@
 import { maintainerApplicationsCol, usersCol, createNotification } from "@/lib/db";
 import { requireCurrentAdmin } from "@/lib/admin-user-auth";
+import { parseJsonBody } from "@/lib/validation/parse-body";
+import { reviewMaintainerApplicationSchema } from "@/lib/validation/schemas/maintainer-applications";
 
 export const dynamic = "force-dynamic";
 
@@ -14,17 +16,9 @@ export async function POST(
 
     const { id } = await params;
     
-    let body;
-    try {
-      body = await request.json();
-    } catch {
-      return Response.json({ error: "Invalid JSON" }, { status: 400 });
-    }
-
-    const status = body?.status;
-    if (status !== "approved" && status !== "rejected") {
-      return Response.json({ error: "Invalid status. Must be 'approved' or 'rejected'." }, { status: 400 });
-    }
+    const parsed = await parseJsonBody(request, reviewMaintainerApplicationSchema);
+    if (!parsed.success) return parsed.response;
+    const { status } = parsed.data;
 
     const appSnap = await maintainerApplicationsCol.ref.doc(id).get();
     if (!appSnap.exists) {

@@ -1,5 +1,7 @@
 import { maintainerApplicationsCol, nextId } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
+import { parseJsonBody } from "@/lib/validation/parse-body";
+import { maintainerApplicationSchema } from "@/lib/validation/schemas/maintainer-applications";
 
 export const dynamic = "force-dynamic";
 
@@ -12,17 +14,9 @@ export async function POST(request: Request) {
     
     const { userId } = auth;
 
-    let body;
-    try {
-      body = await request.json();
-    } catch {
-      return Response.json({ error: "Invalid JSON" }, { status: 400 });
-    }
-
-    const reason = body?.reason?.trim();
-    if (!reason) {
-      return Response.json({ error: "Reason is required" }, { status: 400 });
-    }
+    const parsed = await parseJsonBody(request, maintainerApplicationSchema);
+    if (!parsed.success) return parsed.response;
+    const { reason } = parsed.data;
 
     // Check if there is already a pending application for this user
     const pendingSnap = await maintainerApplicationsCol.ref
