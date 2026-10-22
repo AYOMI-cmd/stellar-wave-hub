@@ -79,8 +79,8 @@ export async function logModerationAction(input: {
 
 export async function createNotification(input: {
   user_id: number;
-  project_id: number;
-  project_name: string;
+  project_id?: number | null;
+  project_name?: string | null;
   status: string;
   message: string;
 }) {
@@ -88,8 +88,8 @@ export async function createNotification(input: {
   await notificationsCol.ref.doc(String(numericId)).set({
     numericId,
     user_id: input.user_id,
-    project_id: input.project_id,
-    project_name: input.project_name,
+    project_id: input.project_id ?? null,
+    project_name: input.project_name ?? null,
     status: input.status,
     message: input.message,
     read: false,

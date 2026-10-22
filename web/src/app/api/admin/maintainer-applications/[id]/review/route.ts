@@ -1,16 +1,15 @@
-import { maintainerApplicationsCol, notificationsCol, usersCol, nextId } from "@/lib/db";
-import { getAuthUser } from "@/lib/auth";
+import { maintainerApplicationsCol, usersCol, createNotification } from "@/lib/db";
+import { requireCurrentAdmin } from "@/lib/admin-user-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = getAuthUser(request);
-    if (!auth || auth.role !== "admin") {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    if (!(await requireCurrentAdmin(request))) {
+      return Response.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { id } = await params;
@@ -44,26 +43,21 @@ export async function POST(
 
     const userId = appData.user_id;
 
-    // If approved, update user role
+    // If approved, promote — but never demote someone who already outranks maintainer.
     if (status === "approved") {
-      await usersCol.ref.doc(userId.toString()).update({
-        role: "maintainer",
-      });
+      const applicant = await usersCol.ref.doc(userId.toString()).get();
+      if (applicant.exists && applicant.data()?.role === "contributor") {
+        await usersCol.ref.doc(userId.toString()).update({
+          role: "maintainer",
+        });
+      }
     }
 
-    // Send notification
-    const notificationId = await nextId("notifications");
-    const message = status === "approved" 
+    const message = status === "approved"
       ? "Congratulations! Your maintainer application has been approved. You are now a maintainer."
       : "Your maintainer application has been reviewed and unfortunately was not approved at this time.";
 
-    await notificationsCol.ref.doc(notificationId.toString()).set({
-      id: notificationId,
-      user_id: userId,
-      message,
-      read: false,
-      created_at: new Date().toISOString(),
-    });
+    await createNotification({ user_id: Number(userId), status, message });
 
     return Response.json({ success: true, status });
   } catch (error) {
