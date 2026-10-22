@@ -1,6 +1,7 @@
 "use client";
 
 import {useEffect, useState, use, type ReactNode} from "react";
+import dynamic from "next/dynamic";
 import {useAuth} from "@/context/AuthContext";
 import StarRating from "@/components/StarRating";
 import VerifiedOnChainBadge from "@/components/VerifiedOnChainBadge";
@@ -83,6 +84,7 @@ interface FinancialSummary {
 	}[];
 }
 
+const ProjectQr = dynamic(() => import("@/components/ProjectQr"), {ssr: false});
 function StellarAddressLink({address, type, network}: {address: string; type: "account" | "contract"; network?: string}) {
 	const href = type === "account"
 		? explorerAccountUrl(address, network)
@@ -909,6 +911,14 @@ export default function ProjectDetailPage({
 					{project.stellar_contract_id && (
 						<StellarAddressLink address={project.stellar_contract_id} type="contract" network={project.stellar_network} />
 					)}
+				</div>
+
+				{/* QR code for event booths and slides */}
+				<div className="mt-6">
+					<ProjectQr
+						url={new URL(`/projects/${project.slug}`, process.env.NEXT_PUBLIC_SITE_URL || window.location.origin).toString()}
+						name={project.name}
+					/>
 				</div>
 			</div>
 
