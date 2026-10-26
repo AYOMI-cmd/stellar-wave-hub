@@ -1,0 +1,50 @@
+{
+  "buildCommand": "next build",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    }
+  ],
+  "env": {
+    "SUPABASE_URL": {
+      "fromSecret": "SUPABASE_URL"
+    },
+    "SUPABASE_SERVICE_ROLE_KEY": {
+      "fromSecret": "SUPABASE_SERVICE_ROLE_KEY"
+    },
+    "NEXT_PUBLIC_SITE_URL": {
+      "fromSecret": "NEXT_PUBLIC_SITE_URL"
+    },
+    "NEXT_PUBLIC_API_URL": {
+      "fromSecret": "NEXT_PUBLIC_API_URL"
+    },
+    "JWT_SECRET": {
+      "fromSecret": "JWT_SECRET"
+    },
+    "NEXT_PUBLIC_SOROBAN_RPC_URL": {
+      "default": "https://rpc.stellar.xdr.org/soroban"
+    },
+    "NEXT_PUBLIC_CONTRACT_ID": {
+      "default": ""
+    },
+    "NEXT_PUBLIC_CONTRACT_NETWORK": {
+      "default": "mainnet"
+    }
+  }
+}
